@@ -13,6 +13,15 @@ const envSchema = z.object({
   CLIENT_ORIGIN: z.string().default('http://localhost:3000'),
   /** How often the due-date / overdue reminder job runs. 0 disables the scheduler. */
   REMINDER_INTERVAL_MINUTES: z.coerce.number().int().min(0).default(60),
+  /**
+   * How many proxies sit in front of the API, so req.ip is the real client (rate limiting, audit IPs).
+   * Local: 1 (the Next.js dev proxy). Hosted behind Vercel + a load balancer: use the number of hops,
+   * or "true" to trust the whole X-Forwarded-For chain.
+   */
+  TRUST_PROXY: z
+    .string()
+    .default('1')
+    .transform((v) => (v === 'true' ? true : v === 'false' ? false : Number(v))),
 });
 
 const parsed = envSchema.safeParse(process.env);

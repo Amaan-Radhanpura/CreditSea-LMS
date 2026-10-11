@@ -24,7 +24,7 @@ import { sendOk } from './utils/http';
 export function createApp(): express.Express {
   const app = express();
 
-  app.set('trust proxy', 1); // behind the Next.js proxy / a hosting load balancer: req.ip is the real client
+  app.set('trust proxy', env.TRUST_PROXY); // behind the Next.js proxy / hosting load balancers: req.ip is the real client
   app.disable('x-powered-by');
   app.use(helmet());
   app.use(cors({ origin: env.CLIENT_ORIGIN, credentials: true }));
@@ -37,6 +37,8 @@ export function createApp(): express.Express {
   const authLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
     limit: 50,
+    // TRUST_PROXY is set deliberately per environment (see env.ts).
+    validate: { trustProxy: false },
     standardHeaders: 'draft-7',
     legacyHeaders: false,
     skip: () => env.isTest,
