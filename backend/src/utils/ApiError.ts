@@ -16,8 +16,8 @@ export class ApiError extends Error {
   static unauthorized(message = 'Please log in to continue') {
     return new ApiError(401, 'UNAUTHORIZED', message);
   }
-  static forbidden(message = 'You do not have access to this resource') {
-    return new ApiError(403, 'FORBIDDEN', message);
+  static forbidden(message = 'You do not have access to this resource', code = 'FORBIDDEN') {
+    return new ApiError(403, code, message);
   }
   static notFound(message = 'Resource not found') {
     return new ApiError(404, 'NOT_FOUND', message);

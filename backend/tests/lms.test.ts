@@ -455,3 +455,53 @@ describe('Monthly EMI repayment plan', () => {
     expect(note!.message).toContain('12,367.12');
   });
 });
+
+describe('Only the assigned executive can act on a loan', () => {
+  it('blocks other executives, allows take-over, and keeps the admin override', async () => {
+    const borrower = request.agent(app);
+    await signup(borrower, { name: 'Assign Test', email: 'assign@test.dev' }).expect(201);
+    const loan = (await borrower.post('/api/loans').send({ principal: 60000, tenureDays: 60, consentAccepted: true }).expect(201)).body.data;
+    const owner = await User.findById(loan.assignee.id).lean();
+
+    // A second sanction executive who is NOT the assignee
+    const other = await User.create({ name: 'Other Sanction', email: 'other.sanction@test.dev', role: 'SANCTION', passwordHash: await hashPassword(PASSWORD) });
+    const otherAgent = request.agent(app);
+    await otherAgent.post('/api/auth/login').send({ email: other.email, password: PASSWORD }).expect(200);
+
+    const blocked = await otherAgent.patch(`/api/sanction/loans/${loan.id}/approve`).expect(403);
+    expect(blocked.body.error.code).toBe('NOT_ASSIGNEE');
+    expect(blocked.body.error.message).toContain(owner!.name);
+
+    // Wrong role cannot take it over
+    await (await loginAs('COLLECTION')).post(`/api/sanction/loans/${loan.id}/take-over`).expect(403);
+
+    // Take over: now the other executive owns it, the previous owner is notified, and it's audited
+    const taken = await otherAgent.post(`/api/sanction/loans/${loan.id}/take-over`).expect(200);
+    expect(taken.body.data.assignee).toMatchObject({ id: other._id.toString(), name: 'Other Sanction' });
+    expect(await Notification.countDocuments({ user: owner!._id, title: 'Loan taken over' })).toBe(1);
+    const trail = await AuditLog.findOne({ loan: loan.id, action: 'LOAN_ASSIGNED', 'details.reason': 'Taken over by Other Sanction' }).lean();
+    expect(trail!.details).toMatchObject({ previousAssignee: owner!.name });
+
+    // The previous owner is now the one blocked; the new owner can approve
+    const ownerAgent = request.agent(app);
+    await User.updateOne({ _id: owner!._id }, { $set: { passwordHash: await hashPassword(PASSWORD) } });
+    await ownerAgent.post('/api/auth/login').send({ email: owner!.email, password: PASSWORD }).expect(200);
+    await ownerAgent.patch(`/api/sanction/loans/${loan.id}/approve`).expect(403);
+    await otherAgent.patch(`/api/sanction/loans/${loan.id}/approve`).expect(200);
+
+    // Admin (supervisor) can act regardless of assignment
+    const disbursed = await (await loginAs('ADMIN')).patch(`/api/disbursement/loans/${loan.id}/disburse`).expect(200);
+    expect(disbursed.body.data.status).toBe('DISBURSED');
+  });
+
+  it('applies to payments too', async () => {
+    const loan = await Loan.findOne({ 'applicant.fullName': 'Test Person', status: 'DISBURSED' }).lean();
+    const assignee = await User.findById(loan!.assignee).lean();
+    const intruder = await User.create({ name: 'Other Collector', email: 'other.collector@test.dev', role: 'COLLECTION', passwordHash: await hashPassword(PASSWORD) });
+    expect(assignee).toBeTruthy(); // assigned to the existing collection executive at disbursement
+    const agent = request.agent(app);
+    await agent.post('/api/auth/login').send({ email: intruder.email, password: PASSWORD }).expect(200);
+    const res = await agent.post(`/api/collection/loans/${loan!._id}/payments`).send({ utr: 'INTRUDER01', amount: 100, paymentDate: today }).expect(403);
+    expect(res.body.error.code).toBe('NOT_ASSIGNEE');
+  });
+});

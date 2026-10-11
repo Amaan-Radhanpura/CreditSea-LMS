@@ -7,15 +7,17 @@ import { formatINR, type LoanDTO } from '@lms/shared';
 import { useAuth } from '@/components/AuthProvider';
 import { PageHeader } from '@/components/dashboard/DashboardShell';
 import { LoanDetails } from '@/components/dashboard/LoanDetails';
+import { TakeOverBanner, canActOn } from '@/components/dashboard/TakeOverBanner';
 import { LoanQueue } from '@/components/dashboard/LoanQueue';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import { api, errorMessage } from '@/lib/api';
 
-function DisburseModal({ loan, close, done }: { loan: LoanDTO; close: () => void; done: () => void }) {
+function DisburseModal({ loan: initial, close, done }: { loan: LoanDTO; close: () => void; done: () => void }) {
+  const [loan, setLoan] = useState(initial);
   const { user } = useAuth();
   const [busy, setBusy] = useState(false);
-  const ready = loan.status === 'SANCTIONED';
+  const ready = loan.status === 'SANCTIONED' && canActOn(loan, user);
 
   async function disburse() {
     setBusy(true);
@@ -54,7 +56,8 @@ function DisburseModal({ loan, close, done }: { loan: LoanDTO; close: () => void
           Confirm only after the money has been sent to the borrower&apos;s bank account. This cannot be undone.
         </p>
       )}
-      <LoanDetails loan={loan} showSlip={user?.role === 'ADMIN'} />
+      {loan.status === 'SANCTIONED' && <TakeOverBanner loan={loan} module="disbursement" onTaken={setLoan} />}
+      <LoanDetails key={loan.assignee?.id} loan={loan} showSlip={user?.role === 'ADMIN'} />
     </Modal>
   );
 }

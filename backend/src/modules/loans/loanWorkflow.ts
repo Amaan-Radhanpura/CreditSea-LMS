@@ -105,13 +105,27 @@ interface PerformOptions {
  * One lifecycle step, atomically: status change + hand-over to the next stage's executive +
  * audit entries. Must be called inside a transaction (`session`).
  */
+/**
+ * Object-level authorization on top of the role check: only the executive the loan is assigned to
+ * may act on it. ADMIN (supervisor override) and the SYSTEM (auto-close) are exempt. A loan with no
+ * assignee (no active executive existed when it entered the stage) can be handled by anyone in the role.
+ */
+export function assertAssignee(assignee: Assignee | null | undefined, actor: Actor): void {
+  if (actor.role === 'ADMIN' || actor.role === 'SYSTEM' || !assignee) return;
+  if (assignee._id.toString() !== actor.id) {
+    throw ApiError.forbidden(`This loan is assigned to ${assignee.name}. Take it over first if you need to work on it.`, 'NOT_ASSIGNEE');
+  }
+}
+
 export async function performTransition(loanId: string, action: LoanAction, actor: Actor, session: ClientSession, opts: PerformOptions = {}) {
   const before = await Loan.findById(loanId)
-    .select('assignee borrower tenureDays principal repaymentPlan instalments')
+    .select('status assignee borrower tenureDays principal repaymentPlan instalments')
     .populate<{ assignee: Assignee | null }>('assignee', 'name')
     .session(session)
     .lean();
   if (!before) throw ApiError.notFound('Loan not found');
+  // Wrong stage is a 409 from the state machine; the assignee only matters for the stage the loan is in.
+  if (before.status === TRANSITIONS[action].from) assertAssignee(before.assignee, actor);
 
   const nextStage = STAGE_OWNER[TRANSITIONS[action].to];
   const nextAssignee = nextStage ? await pickAssignee(nextStage, session) : null;
@@ -188,5 +202,42 @@ export async function reassignLoan(loanId: string, assigneeId: string, admin: { 
       session,
     );
     await notify([{ user: assignee._id, type: 'LOAN_ASSIGNED', title: 'Loan re-assigned to you', message: `An admin assigned you a loan to ${STAGE_TASK[stage]}.`, loan: loanId }], session);
+  });
+}
+
+/**
+ * "Take over": an executive of the role that owns the loan's current stage assigns it to themselves.
+ * Audited, and the previous assignee is notified, so accountability is never lost.
+ */
+export async function takeOverLoan(loanId: string, actor: { id: string; name: string; role: Role }, ipAddress?: string) {
+  return runInTransaction(async (session) => {
+    const loan = await Loan.findById(loanId).select('status assignee borrower applicant.fullName').populate<{ assignee: Assignee | null }>('assignee', 'name').session(session).lean();
+    if (!loan) throw ApiError.notFound('Loan not found');
+    const stage = STAGE_OWNER[loan.status];
+    if (!stage) throw ApiError.conflict(`A ${loan.status.toLowerCase()} loan has no pending work to take over`, 'NOT_ASSIGNABLE');
+    if (actor.role !== stage) throw ApiError.forbidden(`Only a ${stage.toLowerCase()} executive can take over this loan`);
+    if (loan.assignee?._id.toString() === actor.id) return; // already yours
+
+    // Conditional on the current assignee, so two people taking over at once can't both win.
+    const res = await Loan.updateOne({ _id: loanId, status: loan.status, assignee: loan.assignee?._id ?? null }, { $set: { assignee: actor.id } }, { session });
+    if (res.modifiedCount !== 1) throw ApiError.conflict('Someone else just took this loan over. Please refresh', 'ASSIGNMENT_CHANGED');
+
+    await recordAudit(
+      {
+        actor,
+        action: 'LOAN_ASSIGNED',
+        loanId,
+        subjectUserId: loan.borrower,
+        ipAddress,
+        details: { stage, assigneeId: actor.id, assigneeName: actor.name, previousAssignee: loan.assignee?.name ?? null, reason: `Taken over by ${actor.name}` },
+      },
+      session,
+    );
+    if (loan.assignee) {
+      await notify(
+        [{ user: loan.assignee._id, type: 'LOAN_ASSIGNED', title: 'Loan taken over', message: `${actor.name} took over ${loan.applicant.fullName}'s loan from you.`, loan: loanId }],
+        session,
+      );
+    }
   });
 }

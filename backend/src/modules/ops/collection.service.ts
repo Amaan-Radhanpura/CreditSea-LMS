@@ -1,12 +1,12 @@
 import mongoose from 'mongoose';
 import { formatINR, toBusinessDate, toPaise, toRupees, type PaymentDTO, type PaymentInput, type PaymentResultDTO } from '@lms/shared';
 import type { AuthUser } from '../../types/express';
-import { Loan, Payment } from '../../models';
+import { Loan, Payment, User } from '../../models';
 import { ApiError } from '../../utils/ApiError';
 import { findLoanDTO } from '../loans/loan.service';
 import { recordAudit } from '../audit/audit.service';
 import { notify } from '../notifications/notification.service';
-import { performTransition } from '../loans/loanWorkflow';
+import { assertAssignee, performTransition } from '../loans/loanWorkflow';
 import { nextDue } from '../loans/schedule';
 import { toPaymentDTO } from '../mappers';
 
@@ -35,6 +35,10 @@ export async function recordPayment(loanId: string, input: PaymentInput, actor: 
     await session.withTransaction(async () => {
       const loan = await Loan.findById(loanId).session(session).lean();
       if (!loan) throw ApiError.notFound('Loan not found');
+      if (loan.assignee) {
+        const assignee = await User.findById(loan.assignee).select('name').session(session).lean();
+        assertAssignee(assignee, actor);
+      }
       if (loan.status !== 'DISBURSED') {
         throw ApiError.conflict(`Payments can only be recorded for disbursed loans (this loan is ${loan.status.toLowerCase()})`, 'INVALID_LOAN_STATUS');
       }

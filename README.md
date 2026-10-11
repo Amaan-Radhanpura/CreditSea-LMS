@@ -2,7 +2,7 @@
 
 A full-stack lending platform: borrowers sign up, pass an eligibility check and apply for a loan in under a minute; internal teams move each loan through **Sanction → Disbursement → Collection** with role-based access, a full audit trail and automatic reminders.
 
-> **Live demo:** **https://credit-sea-lms-omega.vercel.app** · log in with any demo account below (one-click buttons on the login page)
+> **Live demo:** **https://credit-sea-lms-omega.vercel.app** · log in with any account from [§2 Login credentials](#2-login-credentials)
 > **Video walkthrough:** _coming soon_
 >
 > The API runs on Render's free tier, which sleeps when idle: the **first request can take ~30–50 s** to wake it up.
@@ -13,7 +13,7 @@ A full-stack lending platform: borrowers sign up, pass an eligibility check and 
 | **Backend** | Node.js · Express · TypeScript · zod |
 | **Database** | MongoDB + Mongoose (replica set, so multi-document transactions work) |
 | **Auth** | JWT in an httpOnly cookie · bcrypt |
-| **Tests** | Vitest · Supertest · mongodb-memory-server (53 tests) |
+| **Tests** | Vitest · Supertest · mongodb-memory-server (55 tests) |
 
 ---
 
@@ -50,7 +50,7 @@ npm run dev        # starts [db] MongoDB on :27017, [api] Express on :5000, [web
 npm run seed       # in a second terminal: demo accounts, borrowers and loans in every stage
 ```
 
-Open **http://localhost:3000**. The login page has one-click buttons for every demo role.
+Open **http://localhost:3000** and log in with any account from [§2](#2-login-credentials).
 
 Generate a secret for `JWT_SECRET` (use the **same value** in both env files):
 ```bash
@@ -152,7 +152,7 @@ Demo loans are spread across the executives and every one has a full audit trail
 | **Collection** | Record payments (UTR, amount, date); the loan **auto-closes** when fully repaid. Overdue tab, repayment schedule |
 | **Admin** | Portfolio overview, every module, **Users & history** (side panel with profile, documents, loans and audit history), re-assign loans, run the reminder job |
 
-Every staff member also has **My activity** and **My profile**. Each loan has an **assignee** per stage (auto-assigned to the least-loaded executive) and an **Audit trail** tab.
+Every staff member also has **My activity** and **My profile**. Each loan has an **assignee** per stage (auto-assigned to the least-loaded executive): **only that executive can act on it**. Another executive of the same role can **Take over** the loan (audited, previous assignee notified), and Admin can act on or re-assign any loan. Every loan also has an **Audit trail** tab.
 
 **UX for low-literacy users:** every label has an icon, big touch targets, plain-language errors ("You must be 23 to 50 years old"), status shown by colour + icon + word, Indian number formatting (₹1,05,917.81), and a mobile-first layout with a bottom tab bar.
 
@@ -279,6 +279,7 @@ Roles: **Admin, Sales, Sanction, Disbursement, Collection, Borrower**, stored as
 **Backend (the real enforcement)**
 - `authenticate` verifies the JWT (cookie or Bearer) and **reloads the user from the DB** on every request, so a deactivated account, a role change or a password change takes effect immediately. Fails with **401**.
 - `authorize(...roles)`: **403** unless the user's role is allowed; Admin is always allowed.
+- **Object-level check (assignment):** for approve/reject, disburse and record payment, the user must also be the loan's **current assignee**; otherwise **403 `NOT_ASSIGNEE`** ("This loan is assigned to …"). Admin is exempt (supervisor override) and the system's auto-close is exempt. An executive of the same role can `POST …/take-over` first, which re-assigns the loan to them atomically, writes an audit entry and notifies the previous assignee.
 - `borrowerOnly`: the borrower portal is borrower-only (even Admin gets 403, as Admin has no borrower profile).
 - Each module only sees its own statuses (e.g. Sanction can't read a loan that is in Collection).
 - Public sign-up always creates a `BORROWER`; a `role` field in the request is ignored.
@@ -338,6 +339,7 @@ All routes are under `/api`. Responses: `{ success: true, data }` or `{ success:
 | GET | `/audit/me` · `/audit/loans/:id` | logged in · executives | history / loan audit trail |
 | GET · PATCH | `/notifications` · `/read-all` · `/:id/read` | logged in | |
 | GET | `/admin/stats` · `/admin/users` · `/admin/users/:id[/details\|/activity]` | Admin | |
+| POST | `/{sanction\|disbursement\|collection}/loans/:id/take-over` | that module's role | assign the loan's current stage to yourself (audited, notifies the previous assignee) |
 | PATCH | `/admin/loans/:id/assign` | Admin | re-assign the current stage |
 | POST | `/admin/jobs/reminders` | Admin | run the reminder job now |
 
@@ -348,12 +350,12 @@ Status codes: 200/201 · 400 validation · 401 not logged in · 403 wrong role �
 ## 10. Testing
 
 ```bash
-npm test     # 16 shared unit tests + 37 backend integration tests
+npm test     # 16 shared unit tests + 39 backend integration tests
 ```
 - **Unit (`shared`):** BRE boundaries (age 22/23/50/51 around birthdays, salary 24,999.99 vs 25,000, PAN formats, all failures at once), interest maths (worked example, min/max, rounding), EMI split and payment allocation.
 - **Integration (`backend`, against a real in-memory MongoDB replica set):**
   - sign-up with documents (all-or-nothing)
-  - RBAC 401/403
+  - RBAC 401/403, assignee-only actions, take-over and admin override
   - BRE 422, file type/size/spoofing, consent and ranges
   - server-side maths, one open loan
   - state-machine conflicts, PAN masking
