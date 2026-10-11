@@ -3,7 +3,7 @@
 A full-stack lending platform: borrowers sign up, pass an eligibility check and apply for a loan in under a minute; internal teams move each loan through **Sanction → Disbursement → Collection** with role-based access, a full audit trail and automatic reminders.
 
 > **Live demo:** **https://credit-sea-lms-omega.vercel.app** · log in with any account from [§2 Login credentials](#2-login-credentials)
-> **Video walkthrough:** _coming soon_
+> **Video walkthrough:** [Watch the demo on Google Drive](https://drive.google.com/file/d/1jaJNnNwlfAux3TQI_J8AGiWPhVjg2JvA/view?usp=sharing)
 >
 > The API runs on Render's free tier, which sleeps when idle: the **first request can take ~30–50 s** to wake it up.
 
