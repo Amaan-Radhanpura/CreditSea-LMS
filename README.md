@@ -2,7 +2,10 @@
 
 A full-stack lending platform: borrowers sign up, pass an eligibility check and apply for a loan in under a minute; internal teams move each loan through **Sanction → Disbursement → Collection** with role-based access, a full audit trail and automatic reminders.
 
-> **Live demo:** _coming soon_ · **Video walkthrough:** _coming soon_
+> **Live demo:** **https://credit-sea-lms-omega.vercel.app** · log in with any demo account below (one-click buttons on the login page)
+> **Video walkthrough:** _coming soon_
+>
+> The API runs on Render's free tier, which sleeps when idle: the **first request can take ~30–50 s** to wake it up.
 
 | | |
 |---|---|
@@ -82,6 +85,16 @@ node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"
 `frontend/.env.local` (template: [`frontend/.env.example`](frontend/.env.example)): `BACKEND_URL` (where `/api/*` is proxied) and `JWT_SECRET` (used by the route guard).
 
 The backend validates its env at start-up and exits with a readable message if anything is missing.
+
+### Deployment (how the live demo runs)
+
+| Part | Host | Settings |
+|---|---|---|
+| Website | **Vercel** | Root directory `frontend` · install command `cd .. && npm install` (builds the shared package) · env `BACKEND_URL`, `JWT_SECRET` |
+| API | **Render** (Node 22) | Build `npm install --include=dev && npm run build -w backend` · start `npm start -w backend` · health check `/api/health` · env `NODE_ENV=production`, `MONGODB_URI`, `JWT_SECRET`, `TRUST_PROXY=true`, `CLIENT_ORIGIN`, `REMINDER_INTERVAL_MINUTES` |
+| Database + documents | **MongoDB Atlas** (M0) | Replica set (transactions) · documents in GridFS · `npm run db:indexes` / `npm run seed` against it |
+
+The browser only ever talks to Vercel; Vercel proxies `/api/*` to Render, so the login cookie stays first-party.
 
 ---
 
