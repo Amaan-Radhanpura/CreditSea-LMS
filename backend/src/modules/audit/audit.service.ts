@@ -1,6 +1,7 @@
 import type { ClientSession, FilterQuery, Types } from 'mongoose';
 import { toRupees, type AuditAction, type AuditEntryDTO, type Paginated, type Role } from '@lms/shared';
-import { AuditLog, type IAuditLog } from '../../models';
+import { AuditLog, Loan, type IAuditLog } from '../../models';
+import { ApiError } from '../../utils/ApiError';
 
 export type AuditActor = { id: string; role: Role } | 'SYSTEM';
 
@@ -70,3 +71,9 @@ export async function listAudit(filter: FilterQuery<IAuditLog>, page: number, li
 
 /** Everything a user did, plus everything done to them (for borrowers: who reviewed/approved/disbursed their loans). */
 export const userHistoryFilter = (userId: string): FilterQuery<IAuditLog> => ({ $or: [{ actor: userId }, { subjectUser: userId }] });
+
+/** Audit trail of one loan (404 if the loan doesn't exist). */
+export async function listLoanAudit(loanId: string, page: number, limit: number): Promise<Paginated<AuditEntryDTO>> {
+  if (!(await Loan.exists({ _id: loanId }))) throw ApiError.notFound('Loan not found');
+  return listAudit({ loan: loanId }, page, limit);
+}

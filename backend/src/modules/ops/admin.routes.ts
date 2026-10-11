@@ -1,62 +1,23 @@
 import { Router } from 'express';
-import { LOAN_STATUSES, activityQuerySchema, assignLoanSchema, toBusinessDate, toRupees, userListQuerySchema, type LoanStatus, type StatsDTO } from '@lms/shared';
+import { activityQuerySchema, assignLoanSchema, userListQuerySchema } from '@lms/shared';
 import { authenticate, authorize } from '../../middleware/auth';
-import { Loan } from '../../models';
 import { validateBody, validateObjectId } from '../../middleware/validate';
 import { asyncHandler, sendOk } from '../../utils/http';
 import { listAudit, userHistoryFilter } from '../audit/audit.service';
 import { findLoanDTO } from '../loans/loan.service';
 import { reassignLoan } from '../loans/loanWorkflow';
 import { runReminderJob } from '../notifications/reminderJob';
+import { getPortfolioStats } from './admin.service';
 import { getUserDetails, getUserSummary, listUsers } from './users.service';
-import { countLeads } from './sales.service';
 
 export const adminRouter = Router();
 adminRouter.use(authenticate, authorize('ADMIN'));
 
-/** Portfolio overview from a single $facet aggregation instead of one query per number. */
+/** Portfolio overview (counts per status, money totals, leads, overdue loans). */
 adminRouter.get(
   '/stats',
   asyncHandler(async (_req, res) => {
-    const [[facets], leads, overdueLoans] = await Promise.all([
-      Loan.aggregate<{
-        byStatus: { _id: LoanStatus; n: number }[];
-        money: { disbursed: number; collected: number; outstanding: number }[];
-      }>([
-        {
-          $facet: {
-            byStatus: [{ $group: { _id: '$status', n: { $sum: 1 } } }],
-            money: [
-              { $match: { status: { $in: ['DISBURSED', 'CLOSED'] } } },
-              {
-                $group: {
-                  _id: null,
-                  disbursed: { $sum: '$principal' },
-                  collected: { $sum: '$amountPaid' },
-                  outstanding: { $sum: { $subtract: ['$totalRepayment', '$amountPaid'] } },
-                },
-              },
-            ],
-          },
-        },
-      ]),
-      countLeads(),
-      Loan.countDocuments({ status: 'DISBURSED', nextDueDate: { $lt: new Date(toBusinessDate()) } }),
-    ]);
-
-    const loansByStatus = Object.fromEntries(LOAN_STATUSES.map((s) => [s, 0])) as Record<LoanStatus, number>;
-    for (const { _id, n } of facets?.byStatus ?? []) loansByStatus[_id] = n;
-    const money = facets?.money[0];
-
-    const stats: StatsDTO = {
-      loansByStatus,
-      totalDisbursed: toRupees(money?.disbursed ?? 0),
-      totalCollected: toRupees(money?.collected ?? 0),
-      totalOutstanding: toRupees(money?.outstanding ?? 0),
-      leads,
-      overdueLoans,
-    };
-    sendOk(res, stats);
+    sendOk(res, await getPortfolioStats());
   }),
 );
 

@@ -16,6 +16,12 @@ export async function login(input: LoginInput): Promise<IUser> {
   return user;
 }
 
+export async function getAccount(userId: string): Promise<IUser> {
+  const user = await User.findById(userId).lean();
+  if (!user) throw ApiError.unauthorized();
+  return user;
+}
+
 export async function updateAccount(userId: string, input: UpdateAccountInput): Promise<IUser> {
   const user = await User.findByIdAndUpdate(userId, { $set: { name: input.name } }, { new: true, runValidators: true }).lean();
   if (!user) throw ApiError.notFound('User not found');

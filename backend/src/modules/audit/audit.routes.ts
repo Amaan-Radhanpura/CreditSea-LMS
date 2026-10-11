@@ -2,10 +2,8 @@ import { Router } from 'express';
 import { activityQuerySchema } from '@lms/shared';
 import { authenticate, authorize } from '../../middleware/auth';
 import { validateObjectId } from '../../middleware/validate';
-import { Loan } from '../../models';
-import { ApiError } from '../../utils/ApiError';
 import { asyncHandler, sendOk } from '../../utils/http';
-import { listAudit, userHistoryFilter } from './audit.service';
+import { listAudit, listLoanAudit, userHistoryFilter } from './audit.service';
 
 export const auditRouter = Router();
 auditRouter.use(authenticate);
@@ -26,7 +24,6 @@ auditRouter.get(
   validateObjectId('id'),
   asyncHandler(async (req, res) => {
     const { page, limit } = activityQuerySchema.parse(req.query);
-    if (!(await Loan.exists({ _id: req.params.id }))) throw ApiError.notFound('Loan not found');
-    sendOk(res, await listAudit({ loan: req.params.id }, page, limit));
+    sendOk(res, await listLoanAudit(req.params.id!, page, limit));
   }),
 );

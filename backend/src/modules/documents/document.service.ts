@@ -1,0 +1,41 @@
+import path from 'path';
+import type { Role } from '@lms/shared';
+import { env } from '../../config/env';
+import { DocumentModel, Loan, type IDocument } from '../../models';
+import { ApiError } from '../../utils/ApiError';
+import { recordAudit } from '../audit/audit.service';
+
+/** Roles that may open any borrower's documents (to verify identity and income before approving). */
+const REVIEWER_ROLES: Role[] = ['ADMIN', 'SANCTION'];
+
+/**
+ * Returns a document the viewer is allowed to open, plus where the file lives on disk.
+ * Owners can always open their own files; reviewers can open anyone's, and every such view is
+ * written to the audit log ("who reviewed the documents").
+ */
+export async function openDocument(
+  documentId: string,
+  viewer: { id: string; role: Role },
+  ipAddress?: string,
+): Promise<{ doc: IDocument; filePath: string }> {
+  const doc = await DocumentModel.findById(documentId).lean();
+  if (!doc) throw ApiError.notFound('Document not found');
+
+  const isOwner = doc.owner.toString() === viewer.id;
+  if (!isOwner && !REVIEWER_ROLES.includes(viewer.role)) throw ApiError.forbidden();
+
+  if (!isOwner) {
+    const loan = await Loan.findOne({ $or: [{ salarySlip: doc._id }, { panCard: doc._id }] }).sort({ createdAt: -1 }).select('_id').lean();
+    await recordAudit({
+      actor: viewer,
+      action: 'DOCUMENT_VIEWED',
+      loanId: loan?._id ?? null,
+      subjectUserId: doc.owner,
+      ipAddress,
+      details: { documentId: doc._id.toString(), kind: doc.kind, fileName: doc.originalName },
+    });
+  }
+
+  // basename() so a stored name can never point outside the upload folder.
+  return { doc, filePath: path.join(env.uploadDir, path.basename(doc.storedName)) };
+}

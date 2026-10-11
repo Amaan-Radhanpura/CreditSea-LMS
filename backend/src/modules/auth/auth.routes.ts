@@ -5,8 +5,7 @@ import { env } from '../../config/env';
 import { authenticate, signToken } from '../../middleware/auth';
 import { removeUploads, uploadSignupDocuments } from '../../middleware/upload';
 import { validateBody } from '../../middleware/validate';
-import { User, type IUser } from '../../models';
-import { ApiError } from '../../utils/ApiError';
+import type { IUser } from '../../models';
 import { asyncHandler, sendOk } from '../../utils/http';
 import { toUserDTO } from '../mappers';
 import { recordAudit } from '../audit/audit.service';
@@ -69,9 +68,7 @@ authRouter.get(
   '/me',
   authenticate,
   asyncHandler(async (req, res) => {
-    const user = await User.findById(req.user!.id).lean();
-    if (!user) throw ApiError.unauthorized();
-    sendOk(res, { user: toUserDTO(user) });
+    sendOk(res, { user: toUserDTO(await authService.getAccount(req.user!.id)) });
   }),
 );
 
