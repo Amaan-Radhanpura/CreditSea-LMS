@@ -1,6 +1,7 @@
 import type { NextConfig } from 'next';
 
-const BACKEND_URL = process.env.BACKEND_URL ?? 'http://localhost:5000';
+// Trimmed so a stray space or trailing slash pasted into the hosting dashboard can't break the rewrite.
+const BACKEND_URL = (process.env.BACKEND_URL || 'http://localhost:5000').trim().replace(/\/+$/, '');
 
 const nextConfig: NextConfig = {
   // Hide the "N" dev-tools button in development (it never appears in production builds).
