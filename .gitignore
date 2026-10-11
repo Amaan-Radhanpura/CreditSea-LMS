@@ -1,0 +1,27 @@
+node_modules/
+dist/
+.next/
+out/
+coverage/
+*.tsbuildinfo
+next-env.d.ts
+
+# env
+.env
+.env.local
+.env.*.local
+
+# uploads (user files never committed)
+backend/uploads/*
+!backend/uploads/.gitkeep
+
+# misc
+.DS_Store
+*.log
+.vscode/
+
+# local dev database (npm run db)
+backend/.mongo-data/
+
+# test run uploads
+backend/tests/.uploads/
