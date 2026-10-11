@@ -1,10 +1,12 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { Suspense, useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { CheckCircle2, CircleUserRound, CreditCard, FileText, Hourglass, Pencil, UserRound, Wallet, XCircle } from 'lucide-react';
 import { formatINR, type BorrowerStateDTO, type LoanDTO } from '@lms/shared';
 import { LoanConfigStep } from '@/components/borrower/LoanConfigStep';
+import { quoteInputFromParams } from '@/components/borrower/LoanQuote';
 import { Card, ErrorState, Skeleton } from '@/components/ui/Feedback';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { api, errorMessage } from '@/lib/api';
@@ -109,6 +111,12 @@ function Blocked({ state }: { state: BorrowerStateDTO }) {
   );
 }
 
+/** Starts the form from the numbers chosen in the Home calculator (?amount=&plan=&days=|months=), if any. */
+function PrefilledLoanConfig({ onApplied }: { onApplied: (loan: LoanDTO) => void }) {
+  const params = useSearchParams();
+  return <LoanConfigStep onApplied={onApplied} initial={quoteInputFromParams(params)} />;
+}
+
 export default function ApplyPage() {
   const [state, setState] = useState<BorrowerStateDTO | null>(null);
   const [error, setError] = useState('');
@@ -166,7 +174,9 @@ export default function ApplyPage() {
       </div>
       <SavedSummary state={state} />
       <Card>
-        <LoanConfigStep onApplied={setApplied} />
+        <Suspense fallback={<Skeleton className="h-96" />}>
+          <PrefilledLoanConfig onApplied={setApplied} />
+        </Suspense>
       </Card>
     </div>
   );

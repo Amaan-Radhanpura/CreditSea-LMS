@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { formatINR, type BorrowerStateDTO, type LoanDTO } from '@lms/shared';
 import { useAuth } from '@/components/AuthProvider';
+import { LoanCalculator } from '@/components/borrower/LoanCalculator';
 import { LoanTimeline } from '@/components/LoanTimeline';
 import { RepaymentSchedule } from '@/components/RepaymentSchedule';
 import { Card, ErrorState, Skeleton } from '@/components/ui/Feedback';
@@ -211,6 +212,7 @@ export default function BorrowerHomePage() {
 
       {/* No open loan: the welcome banner above already offers "Apply for a loan". */}
       {openLoan && <CurrentLoan loan={openLoan} />}
+      <LoanCalculator canApply={data.state.step === 'LOAN_CONFIG'} />
       <History loans={data.loans} />
     </div>
   );

@@ -1,42 +1,39 @@
 'use client';
 
-import { useMemo, useState } from 'react';
-import { ArrowLeft, CalendarDays, CalendarRange, CheckCircle2, FileCheck2, IndianRupee, Repeat, Send, ShieldCheck, Wallet } from 'lucide-react';
-import { EMI_RULES, LOAN_RULES, calculateEmi, calculateLoan, formatINR, type LoanDTO, type RepaymentPlan } from '@lms/shared';
+import { useState } from 'react';
+import { ArrowLeft, CheckCircle2, FileCheck2, Send, ShieldCheck } from 'lucide-react';
+import { formatINR, type LoanDTO } from '@lms/shared';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import { api, errorMessage } from '@/lib/api';
 import { cn } from '@/lib/utils';
-import { AmountSlider } from './AmountSlider';
+import { DEFAULT_QUOTE_INPUT, LoanQuoteInputs, QuotePanel, useLoanQuote, type LoanQuoteInput } from './LoanQuote';
 
-const AMOUNT_PRESETS = [50_000, 100_000, 200_000, 500_000].map((v) => ({ value: v, label: v >= 100_000 ? `₹${v / 100_000}L` : `₹${v / 1000}K` }));
-const TENURE_PRESETS = [30, 90, 180, 365].map((v) => ({ value: v, label: `${v} days` }));
-const MONTH_PRESETS = [3, 6, 9, 12].map((v) => ({ value: v, label: `${v} months` }));
-
-const PLANS: { value: RepaymentPlan; title: string; text: string; icon: typeof Wallet }[] = [
-  { value: 'ONE_TIME', title: 'Pay all at once', text: 'One payment at the end', icon: Wallet },
-  { value: 'EMI', title: 'Monthly EMI', text: 'Small equal payments every month', icon: Repeat },
-];
-
-export function LoanConfigStep({ onBack, onApplied }: { onBack?: () => void; onApplied: (loan: LoanDTO) => void }) {
-  const [principal, setPrincipal] = useState(100_000);
-  const [plan, setPlan] = useState<RepaymentPlan>('ONE_TIME');
-  const [tenureDays, setTenureDays] = useState(180);
-  const [months, setMonths] = useState(6);
+export function LoanConfigStep({
+  onBack,
+  onApplied,
+  initial = DEFAULT_QUOTE_INPUT,
+}: {
+  onBack?: () => void;
+  onApplied: (loan: LoanDTO) => void;
+  /** Pre-filled from the Home calculator ("Apply with these numbers"). */
+  initial?: LoanQuoteInput;
+}) {
+  const q = useLoanQuote(initial);
+  const { input, quote, emi } = q;
   const [consent, setConsent] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
-  // Same functions the server uses, so the preview always matches what gets stored.
-  const emi = useMemo(() => (plan === 'EMI' ? calculateEmi(principal, months) : null), [plan, principal, months]);
-  const quote = useMemo(() => emi ?? calculateLoan(principal, tenureDays), [emi, principal, tenureDays]);
-
   async function apply() {
     setSubmitting(true);
     setError('');
     try {
-      const body = plan === 'EMI' ? { principal, repaymentPlan: plan, emiMonths: months } : { principal, repaymentPlan: plan, tenureDays };
+      const body =
+        input.plan === 'EMI'
+          ? { principal: input.principal, repaymentPlan: input.plan, emiMonths: input.months }
+          : { principal: input.principal, repaymentPlan: input.plan, tenureDays: input.tenureDays };
       onApplied(await api.post<LoanDTO>('/loans', { ...body, consentAccepted: true }));
     } catch (err) {
       setError(errorMessage(err));
@@ -60,111 +57,10 @@ export function LoanConfigStep({ onBack, onApplied }: { onBack?: () => void; onA
 
   return (
     <div className="space-y-6">
-      {/* 1. How to repay */}
-      <fieldset>
-        <legend className="mb-3 text-base font-semibold text-slate-700">How do you want to pay back?</legend>
-        <div className="grid gap-3 sm:grid-cols-2">
-          {PLANS.map((p) => {
-            const selected = plan === p.value;
-            return (
-              <label
-                key={p.value}
-                className={cn(
-                  'flex cursor-pointer items-center gap-4 rounded-2xl p-4 ring-2 transition',
-                  selected ? 'bg-brand-50 ring-brand-500' : 'bg-white ring-slate-200 hover:ring-slate-300',
-                )}
-              >
-                <input type="radio" name="plan" className="sr-only" checked={selected} onChange={() => setPlan(p.value)} />
-                <span className={cn('grid size-12 shrink-0 place-items-center rounded-xl', selected ? 'bg-brand-600 text-white' : 'bg-slate-100 text-slate-500')}>
-                  <p.icon className="size-6" />
-                </span>
-                <span>
-                  <span className={cn('block font-bold', selected ? 'text-brand-800' : 'text-slate-800')}>{p.title}</span>
-                  <span className="text-sm text-slate-500">{p.text}</span>
-                </span>
-                {selected && <CheckCircle2 className="ml-auto size-6 text-brand-600" />}
-              </label>
-            );
-          })}
-        </div>
-      </fieldset>
+      <LoanQuoteInputs q={q} />
+      <QuotePanel q={q} />
 
-      {/* 2. Amount + time */}
-      <div className="grid gap-4 lg:grid-cols-2">
-        <AmountSlider
-          label="How much do you need?"
-          icon={<IndianRupee />}
-          value={principal}
-          min={LOAN_RULES.MIN_PRINCIPAL}
-          max={LOAN_RULES.MAX_PRINCIPAL}
-          step={LOAN_RULES.PRINCIPAL_STEP}
-          buttonStep={10_000}
-          format={formatINR}
-          presets={AMOUNT_PRESETS}
-          onChange={setPrincipal}
-        />
-        {plan === 'EMI' ? (
-          <AmountSlider
-            label="In how many months?"
-            icon={<CalendarDays />}
-            value={months}
-            min={EMI_RULES.MIN_MONTHS}
-            max={EMI_RULES.MAX_MONTHS}
-            step={1}
-            buttonStep={1}
-            format={(v) => `${v} month${v === 1 ? '' : 's'}`}
-            presets={MONTH_PRESETS}
-            onChange={setMonths}
-          />
-        ) : (
-          <AmountSlider
-            label="For how many days?"
-            icon={<CalendarRange />}
-            value={tenureDays}
-            min={LOAN_RULES.MIN_TENURE_DAYS}
-            max={LOAN_RULES.MAX_TENURE_DAYS}
-            step={1}
-            buttonStep={15}
-            format={(v) => `${v} days`}
-            presets={TENURE_PRESETS}
-            onChange={setTenureDays}
-          />
-        )}
-      </div>
-
-      {/* 3. Live calculation: the numbers that matter, in big type */}
-      <div className="overflow-hidden rounded-3xl bg-gradient-to-br from-brand-600 to-brand-800 text-white shadow-xl shadow-brand-600/20">
-        <div className={cn('grid divide-y divide-white/15 sm:divide-x sm:divide-y-0', emi ? 'sm:grid-cols-3' : 'sm:grid-cols-2')}>
-          <div className="p-6">
-            <p className="text-brand-100">You get</p>
-            <p className="mt-1 text-3xl font-extrabold tabular-nums sm:text-4xl">{formatINR(quote.principal)}</p>
-          </div>
-          {emi && (
-            <div className="bg-white/10 p-6">
-              <p className="text-brand-100">You pay every month</p>
-              <p className="mt-1 text-3xl font-extrabold tabular-nums text-amber-200 sm:text-4xl">{formatINR(emi.emi)}</p>
-              <p className="text-sm text-brand-100">
-                for {emi.months} month{emi.months === 1 ? '' : 's'}
-              </p>
-            </div>
-          )}
-          <div className="p-6">
-            <p className="text-brand-100">You pay back in total</p>
-            <p className="mt-1 text-3xl font-extrabold tabular-nums text-emerald-300 sm:text-4xl">{formatINR(quote.totalRepayment)}</p>
-          </div>
-        </div>
-        <p className="bg-black/15 px-6 py-3 text-sm text-brand-100">
-          Interest: {formatINR(quote.principal)} × 12% × {quote.tenureDays} days ÷ 365 = <strong className="text-white">{formatINR(quote.simpleInterest)}</strong>
-          {emi && (
-            <>
-              {' '}
-              · Total ÷ {emi.months} = <strong className="text-white">{formatINR(emi.emi)}</strong> per month
-            </>
-          )}
-        </p>
-      </div>
-
-      {/* 4. Key Fact Statement + consent */}
+      {/* Key Fact Statement + consent */}
       <div className="rounded-3xl bg-white p-5 ring-1 ring-slate-200 sm:p-6">
         <p className="flex items-center gap-2 text-lg font-bold text-slate-800">
           <FileCheck2 className="size-6 text-brand-600" /> Key facts about your loan
