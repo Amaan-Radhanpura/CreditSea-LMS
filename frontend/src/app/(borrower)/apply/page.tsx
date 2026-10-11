@@ -2,13 +2,13 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { CheckCircle2, CircleUserRound, CreditCard, FileText, Pencil, UserRound, Wallet, XCircle } from 'lucide-react';
+import { CheckCircle2, CircleUserRound, CreditCard, FileText, Hourglass, Pencil, UserRound, Wallet, XCircle } from 'lucide-react';
 import { formatINR, type BorrowerStateDTO, type LoanDTO } from '@lms/shared';
 import { LoanConfigStep } from '@/components/borrower/LoanConfigStep';
 import { Card, ErrorState, Skeleton } from '@/components/ui/Feedback';
+import { StatusBadge } from '@/components/ui/StatusBadge';
 import { api, errorMessage } from '@/lib/api';
-import { EMPLOYMENT_LABEL } from '@/lib/utils';
+import { EMPLOYMENT_LABEL, formatDate } from '@/lib/utils';
 
 const linkBtn = 'inline-flex h-12 items-center justify-center gap-2 rounded-xl px-5 font-semibold transition';
 
@@ -33,6 +33,47 @@ function SavedSummary({ state }: { state: BorrowerStateDTO }) {
         <Pencil className="size-4" /> Change
       </Link>
     </div>
+  );
+}
+
+/** Only one loan at a time: explain why the form isn't shown, and what to do instead. */
+function LoanInProgress({ loan }: { loan: LoanDTO }) {
+  const paying = loan.status === 'DISBURSED';
+  return (
+    <Card className="mx-auto max-w-2xl text-center animate-fade-in">
+      <span className="mx-auto grid size-20 place-items-center rounded-full bg-brand-100 text-brand-600">
+        <Hourglass className="size-10" />
+      </span>
+      <h1 className="mt-5 text-2xl font-extrabold text-slate-900">You already have a loan in progress</h1>
+      <p className="mx-auto mt-2 max-w-md text-slate-500">
+        You can have one loan at a time.{' '}
+        {paying ? 'Once this loan is fully paid back, you can apply for a new one.' : 'Once it is closed, you can apply for a new one.'}
+      </p>
+
+      <div className="mx-auto mt-6 max-w-md rounded-2xl bg-slate-50 p-5 text-left ring-1 ring-slate-200">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-sm text-slate-500">Current loan</p>
+            <p className="text-2xl font-extrabold text-slate-900 tabular-nums">{formatINR(loan.principal)}</p>
+          </div>
+          <StatusBadge status={loan.status} />
+        </div>
+        {paying && (
+          <p className="mt-3 text-slate-600">
+            Left to pay: <strong className="text-slate-900">{formatINR(loan.outstanding)}</strong>
+            {loan.nextDue && (
+              <>
+                {' '}· next payment {formatINR(loan.nextDue.amount)} by {formatDate(loan.nextDue.dueDate)}
+              </>
+            )}
+          </p>
+        )}
+      </div>
+
+      <Link href="/my-loans" className={`${linkBtn} mt-6 bg-brand-600 text-white shadow-lg shadow-brand-600/25 hover:bg-brand-700`}>
+        <Wallet className="size-5" /> View my loan
+      </Link>
+    </Card>
   );
 }
 
@@ -69,18 +110,22 @@ function Blocked({ state }: { state: BorrowerStateDTO }) {
 }
 
 export default function ApplyPage() {
-  const router = useRouter();
   const [state, setState] = useState<BorrowerStateDTO | null>(null);
   const [error, setError] = useState('');
   const [applied, setApplied] = useState<LoanDTO | null>(null);
+  const [openLoan, setOpenLoan] = useState<LoanDTO | null>(null);
 
   const load = useCallback(() => {
     setError('');
     api
       .get<BorrowerStateDTO>('/borrower/state')
-      .then((s) => (s.step === 'HAS_OPEN_LOAN' ? router.replace('/my-loans') : setState(s)))
+      .then(async (s) => {
+        // One loan at a time: if one is in progress, show it instead of the form (no silent redirect).
+        if (s.openLoanId) setOpenLoan(await api.get<LoanDTO>(`/loans/me/${s.openLoanId}`));
+        setState(s);
+      })
       .catch((err) => setError(errorMessage(err)));
-  }, [router]);
+  }, []);
   useEffect(load, [load]);
 
   if (applied) {
@@ -110,6 +155,7 @@ export default function ApplyPage() {
       </div>
     );
   }
+  if (state.step === 'HAS_OPEN_LOAN' && openLoan) return <LoanInProgress loan={openLoan} />;
   if (state.step !== 'LOAN_CONFIG') return <Blocked state={state} />;
 
   return (
