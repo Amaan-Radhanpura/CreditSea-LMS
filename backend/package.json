@@ -10,7 +10,8 @@
     "seed": "tsx src/scripts/seed.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "db": "tsx src/scripts/localDb.ts"
+    "db": "tsx src/scripts/localDb.ts",
+    "db:indexes": "tsx src/scripts/syncIndexes.ts"
   },
   "dependencies": {
     "@lms/shared": "1.0.0",

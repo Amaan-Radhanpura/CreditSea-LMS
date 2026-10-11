@@ -19,7 +19,8 @@
     "test": "npm run test -w shared && npm run test -w backend",
     "typecheck": "npm run typecheck -w shared && npm run typecheck -w backend && npm run typecheck -w frontend",
     "build": "npm run build:shared && npm run build -w backend && npm run build -w frontend",
-    "dev:atlas": "concurrently -n api,web -c cyan,magenta \"npm:dev:backend\" \"npm:dev:frontend\""
+    "dev:atlas": "concurrently -n api,web -c cyan,magenta \"npm:dev:backend\" \"npm:dev:frontend\"",
+    "db:indexes": "npm run db:indexes -w backend"
   },
   "devDependencies": {
     "concurrently": "^9.1.2"

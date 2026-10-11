@@ -54,13 +54,14 @@ Generate a secret for `JWT_SECRET` (use the **same value** in both env files):
 node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"
 ```
 
-**Using MongoDB Atlas instead of the local DB:** put the Atlas URI in `backend/.env` (`MONGODB_URI`) and run `npm run dev:atlas`. Atlas clusters are replica sets, so transactions work.
+**Using MongoDB Atlas instead of the local DB:** put the Atlas URI (with the database name, e.g. `.../lms?retryWrites=true&w=majority`) in `backend/.env` as `MONGODB_URI`, run `npm run db:indexes` once (or `npm run seed` for demo data), then start with `npm run dev:atlas`. Atlas clusters are replica sets, so transactions work. In Atlas → *Network Access*, allow your IP (or `0.0.0.0/0` for a hosted backend).
 
 | Script | What it does |
 |---|---|
 | `npm run dev` | Local MongoDB + API + web, together |
 | `npm run dev:atlas` | API + web only (bring your own `MONGODB_URI`) |
 | `npm run seed` | Resets demo data (idempotent) and syncs all indexes |
+| `npm run db:indexes` | Creates every index from the schemas on the database in `MONGODB_URI` (e.g. a fresh Atlas cluster) |
 | `npm test` | All unit + integration tests |
 | `npm run typecheck` | TypeScript across all three packages |
 | `npm run build` | Production build |
