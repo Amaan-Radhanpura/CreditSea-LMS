@@ -24,3 +24,6 @@ backend/.mongo-data/
 
 # test run uploads
 backend/tests/.uploads/
+
+# Local planning notes (not published)
+docs/

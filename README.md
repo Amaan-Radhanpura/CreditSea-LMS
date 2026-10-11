@@ -396,13 +396,12 @@ npm test     # 16 shared unit tests + 40 backend integration tests
 │   │   │   └── mappers.ts   # DB → API (paise → rupees, PAN masking, schedule status)
 │   │   └── scripts/         # seed.ts, localDb.ts
 │   └── tests/               # integration tests
-├── frontend/
-│   └── src/
-│       ├── middleware.ts    # route guard by role
-│       ├── app/             # (auth) login/register · (borrower) home/apply/my-loans/profile · dashboard/*
-│       ├── components/      # ui/, borrower/, dashboard/, profile/, NotificationBell, RepaymentSchedule…
-│       └── lib/  hooks/
-└── docs/                    # original plan and working notes
+└── frontend/
+    └── src/
+        ├── middleware.ts    # route guard by role
+        ├── app/             # (auth) login/register · (borrower) home/apply/my-loans/profile · dashboard/*
+        ├── components/      # ui/, borrower/, dashboard/, profile/, NotificationBell, RepaymentSchedule…
+        └── lib/  hooks/
 ```
 
 ---
