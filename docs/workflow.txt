@@ -1,0 +1,519 @@
+NOTE: development working notes, written part-way through the build. The README.md at the repo root
+is the up-to-date reference (it also covers features added later: sign-up with documents, EMI,
+borrower Home, profile, notifications and reminders).
+
+
+claude --continue
+
+
+================================================================================
+  CREDITSEA: LOAN MANAGEMENT SYSTEM
+  WORKFLOW & PROJECT REFERENCE
+================================================================================
+Project folder : C:\Users\Amaan Radhanpura\Desktop\Creditsea
+Assignment     : Full-Stack Assignment, Loan Management System (LMS_Assignment.pdf)
+Status         : Core flow + extras complete and tested (README / git / video pending)
+
+
+--------------------------------------------------------------------------------
+ 1. HOW TO RUN
+--------------------------------------------------------------------------------
+Prerequisite: Node.js 20+ (installed: v22.14.0)
+
+  npm install        (first time only; also builds the shared package)
+  npm run dev        starts 3 things together:
+                       [db]  local MongoDB replica set on 127.0.0.1:27017
+                       [api] Express backend on http://localhost:5000
+                       [web] Next.js frontend on http://localhost:3000
+  npm run seed       (in a 2nd terminal, while dev is running)
+                     resets demo data: accounts, demo borrowers/loans, audit log,
+                     reminders
+  npm test           runs all automated tests (10 shared + 29 backend)
+
+Open http://localhost:3000. The login page has one-click demo account buttons.
+
+Other scripts:
+  npm run db          start only the local database
+  npm run dev:atlas   start api + web without the local DB (when using Atlas)
+  npm run typecheck   TypeScript check for all 3 packages
+  npm run build       production build
+
+Settings files (NOT committed to git, contain the secret key):
+  backend/.env          PORT, MONGODB_URI, JWT_SECRET, JWT_EXPIRES_IN,
+                        CLIENT_ORIGIN, UPLOAD_DIR, REMINDER_INTERVAL_MINUTES
+  frontend/.env.local   BACKEND_URL, JWT_SECRET (must match the backend's)
+  Templates: backend/.env.example, frontend/.env.example
+
+Database data lives on disk in backend/.mongo-data, so it survives restarts.
+Uploaded files live in backend/uploads.
+To use MongoDB Atlas instead: put the Atlas URI in backend/.env and run
+"npm run dev:atlas".
+
+
+--------------------------------------------------------------------------------
+ 2. LOGIN ACCOUNTS  (password for EVERY account: Password@123)
+--------------------------------------------------------------------------------
+STAFF (12 accounts: 1 admin, 2-3 per executive role, 1 test borrower)
+
+  Role           Name               Email                    Can access
+  -------------  -----------------  -----------------------  -------------------------
+  ADMIN          Aarti Admin        admin@lms.dev            Everything: Overview,
+                                                             all 4 modules, Users &
+                                                             history, re-assign loans,
+                                                             run reminder job
+  SALES          Sameer Shah        sales@lms.dev            Sales module (leads)
+  SALES          Priya Desai        sales2@lms.dev           Sales module (leads)
+  SANCTION       Sneha Kulkarni     sanction@lms.dev         Sanction module
+  SANCTION       Rohit Malhotra     sanction2@lms.dev        Sanction module
+  SANCTION       Fatima Sheikh      sanction3@lms.dev        Sanction module
+  DISBURSEMENT   Dev Patel          disbursement@lms.dev     Disbursement module
+  DISBURSEMENT   Anjali Rao         disbursement2@lms.dev    Disbursement module
+  COLLECTION     Chetan Joshi       collection@lms.dev       Collection module
+  COLLECTION     Kiran Bhatt        collection2@lms.dev      Collection module
+  COLLECTION     Nisha Menon        collection3@lms.dev      Collection module
+  BORROWER       Bharat Borrower    borrower@lms.dev         Borrower portal (clean
+                                                             account: no profile, no
+                                                             loans; use it to show the
+                                                             full apply flow)
+
+  Every executive also has "My activity" (their own history).
+  Only ADMIN sees "Users & history".
+
+DEMO BORROWERS (15 accounts, email = firstname@demo.lms.dev, same password)
+
+  Leads (registered, never applied), shown in the Sales module:
+    ravi@demo.lms.dev      Ravi Kumar      Just signed up (no details yet)
+    pooja@demo.lms.dev     Pooja Mehta     Failed eligibility (salary 18,000,
+                                           unemployed)
+    imran@demo.lms.dev     Imran Shaikh    Eligible, salary slip not uploaded
+    neha@demo.lms.dev      Neha Joshi      Eligible + slip uploaded, ready to apply
+
+  Loans in every stage:
+    arjun@demo.lms.dev     Arjun Nair      APPLIED     Rs 1,50,000 / 180 days
+    kavya@demo.lms.dev     Kavya Reddy     APPLIED     Rs   80,000 /  90 days
+    sanjay@demo.lms.dev    Sanjay Gupta    APPLIED     Rs 2,50,000 / 270 days
+    vikram@demo.lms.dev    Vikram Singh    SANCTIONED  Rs 3,00,000 / 365 days
+    divya@demo.lms.dev     Divya Krishnan  SANCTIONED  Rs 1,20,000 / 120 days
+    ananya@demo.lms.dev    Ananya Iyer     DISBURSED   Rs 1,00,000 / 180 days, 40% paid
+    mohit@demo.lms.dev     Mohit Agarwal   DISBURSED   Rs 2,00,000 / 365 days, 15% paid
+    suresh@demo.lms.dev    Suresh Yadav    DISBURSED   Rs   75,000 /  30 days, 30% paid,
+                                           DUE TOMORROW (gets "due tomorrow" reminder)
+    pallavi@demo.lms.dev   Pallavi Das     DISBURSED   Rs   90,000 /  45 days, 20% paid,
+                                           3 DAYS OVERDUE (overdue reminder + staff
+                                           alert)
+    rahul@demo.lms.dev     Rahul Verma     CLOSED      Rs   60,000 /  60 days, fully paid
+    meera@demo.lms.dev     Meera Pillai    REJECTED    Rs 4,50,000 (reason: amount too
+                                           high for income)
+
+  Demo loans are spread across the executives (round-robin), and each one has a
+  complete audit trail (applied, assigned, slip reviewed, approved, disbursed,
+  payments, closed).
+
+
+--------------------------------------------------------------------------------
+ 3. TECH STACK (as required by the assignment)
+--------------------------------------------------------------------------------
+  Frontend : Next.js 15 (App Router) + React 19 + TypeScript + Tailwind CSS v4
+             lucide-react icons, sonner toasts, jose (JWT verify in middleware)
+  Backend  : Node.js + Express 4 + TypeScript
+             zod validation, multer uploads, helmet, cors, compression,
+             express-rate-limit, pino logging, bcryptjs, jsonwebtoken
+  Database : MongoDB 7 + Mongoose 8 (single-node replica set, so transactions work)
+  Auth     : JWT in an httpOnly cookie + bcrypt-hashed passwords
+  Tests    : Vitest + Supertest + mongodb-memory-server (in-memory replica set)
+
+  Monorepo (npm workspaces):
+    shared/    code used by BOTH frontend and backend
+               - constants.ts : roles, statuses, loan limits, PAN/UTR regex,
+                                audit actions, notification types, stage owners
+               - bre.ts       : eligibility rules (runBre, calculateAge)
+               - loanMath.ts  : simple interest calculation
+               - money.ts     : paise<->rupees, Rs formatting, IST business date
+               - schemas.ts   : zod validation schemas (same rules on both sides)
+               - types.ts     : DTO types for every API response
+    backend/   Express API
+    frontend/  Next.js app
+
+
+--------------------------------------------------------------------------------
+ 4. FOLDER STRUCTURE
+--------------------------------------------------------------------------------
+backend/src/
+  app.ts, server.ts              app setup / start + graceful shutdown + scheduler
+  config/env.ts, db.ts           env validation (fails fast), DB connection
+  models/                        User, BorrowerProfile, Document, Loan, Payment,
+                                 AuditLog, Notification
+  middleware/                    auth (authenticate, authorize, borrowerOnly),
+                                 validate, upload, errorHandler
+  modules/
+    auth/                        register, login, logout, me
+    borrower/                    profile + BRE, salary slip upload, journey state
+    loans/                       apply, my loans, loanStateMachine,
+                                 loanWorkflow (transactions, assignment)
+    ops/                         sales, sanction, disbursement, collection, admin,
+                                 users, shared queueRouter
+    documents/                   secure file download
+    audit/                       audit log service + routes
+    notifications/               notification service, routes, reminderJob
+    mappers.ts                   DB -> API (paise->rupees, PAN masking, overdue)
+  scripts/seed.ts, localDb.ts    demo data, local MongoDB
+  utils/                         ApiError, http helpers, logger
+backend/tests/lms.test.ts        29 integration tests
+
+frontend/src/
+  middleware.ts                  route guard by role (frontend half of RBAC)
+  app/
+    page.tsx                     landing page
+    (auth)/login, register       login (with demo buttons), sign-up
+    (borrower)/apply             3-step application
+    (borrower)/my-loans          loan status, timeline, due/overdue banners
+    dashboard/                   admin overview
+    dashboard/sales|sanction|disbursement|collection
+    dashboard/users, users/[id]  admin: users & history
+    dashboard/activity           "My activity" for executives
+  components/                    ui/ (Button, Field, Modal, Drawer, StatusBadge, ...)
+                                 borrower/, dashboard/, NotificationBell,
+                                 LoanTimeline, AuthProvider
+  lib/                           api client, routes, roles, utils
+  hooks/usePaginated.ts
+
+
+--------------------------------------------------------------------------------
+ 5. DATABASE DESIGN (MongoDB collections)
+--------------------------------------------------------------------------------
+All money is stored as INTEGER PAISE (no floating-point errors). The API sends
+and receives rupees; conversion happens in one place (mappers.ts / zod).
+
+Relationships:
+  User 1 --- 0..1 BorrowerProfile
+  User 1 --- N    Document          (uploaded salary slips)
+  User 1 --- N    Loan              (as borrower)
+  User 1 --- N    Loan              (as current assignee / executive)
+  Loan 1 --- N    Payment
+  Loan / User 1 --- N AuditLog      (actor, subject borrower, loan)
+  User 1 --- N    Notification
+
+users
+  name, email (unique, lowercase), passwordHash (select:false, never returned),
+  role (ADMIN|SALES|SANCTION|DISBURSEMENT|COLLECTION|BORROWER), isActive,
+  createdAt, updatedAt
+  Indexes: {email} unique, {role, createdAt}
+
+borrowerprofiles  (1:1 with a borrower, kept apart so auth lookups stay small)
+  user (unique), fullName, pan (uppercase), dob, monthlySalary (paise),
+  employmentMode, bre {passed, failures[{rule,message}], checkedAt},
+  salarySlip (ref Document)
+  Failed BRE results are saved too, so Sales can see why a lead dropped off.
+  Indexes: {user} unique,
+           {pan} unique PARTIAL where bre.passed=true (one PAN = one eligible
+           borrower)
+
+documents
+  owner, kind (SALARY_SLIP), originalName, storedName (random UUID on disk),
+  mimeType, size
+  Indexes: {owner}, {storedName} unique
+
+loans
+  borrower, applicant (SNAPSHOT of profile at apply time), salarySlip,
+  assignee (executive owning the current stage), principal, interestRate (12),
+  tenureDays, simpleInterest, totalRepayment, amountPaid (all paise),
+  status (APPLIED|SANCTIONED|REJECTED|DISBURSED|CLOSED), isOpen,
+  rejectionReason, sanctionedBy/At, rejectedBy/At, disbursedBy/At,
+  dueDate (set at disbursement), closedAt,
+  consent {termsVersion, acceptedAt, ipAddress},
+  statusHistory [{from, to, by, at, note}]  (embedded, at most 4 entries)
+  Indexes: {status, createdAt}  -> every ops queue
+           {borrower, createdAt} -> "my loans" + Sales lookup
+           {borrower} unique PARTIAL where isOpen=true
+                                 -> DB guarantees ONE open loan per borrower
+           {assignee, status}    -> "Assigned to me" + least-loaded assignment
+           {status, dueDate}     -> reminder job + Overdue tab
+
+payments  (own collection: unbounded, needs a global unique UTR)
+  loan, utr (unique, uppercase), amount (paise), paymentDate, recordedBy
+  Indexes: {utr} unique, {loan, paymentDate}
+
+auditlogs  (APPEND-ONLY: update/delete through the model throws an error)
+  actor (null = system), actorRole, action, loan, subjectUser, details
+  (snapshot incl. names), ipAddress, createdAt
+  Actions: USER_REGISTERED, PROFILE_SUBMITTED, SLIP_UPLOADED, LOAN_APPLIED,
+           LOAN_ASSIGNED, DOCUMENT_VIEWED, LOAN_SANCTIONED, LOAN_REJECTED,
+           LOAN_DISBURSED, PAYMENT_RECORDED, LOAN_CLOSED
+  Indexes: {actor, createdAt}, {subjectUser, createdAt}, {loan, createdAt}
+
+notifications
+  user, type, title, message, loan, readAt, dedupeKey, createdAt
+  Types: DUE_REMINDER, OVERDUE, OVERDUE_ALERT, LOAN_SANCTIONED, LOAN_REJECTED,
+         LOAN_DISBURSED, PAYMENT_RECEIVED, LOAN_CLOSED, LOAN_ASSIGNED
+  Indexes: {user, createdAt}, {user, readAt},
+           {dedupeKey} unique PARTIAL (reminders never sent twice)
+
+Design decisions (embed vs reference):
+  - statusHistory EMBEDDED: small, always read with the loan
+  - applicant SNAPSHOT embedded: legal record of what was approved, and the
+    Sanction queue needs no join
+  - payments REFERENCED: unbounded, need their own unique UTR index
+  - amountPaid DENORMALIZED on loan: outstanding balance is read instantly;
+    kept correct by updating it in the same transaction as the payment insert
+  - Queries use .lean() + projections, pagination (max 50 per page),
+    parallel count, aggregation pipelines ($lookup/$facet) for leads,
+    users and stats
+
+
+--------------------------------------------------------------------------------
+ 6. BUSINESS RULES
+--------------------------------------------------------------------------------
+BRE (eligibility), in shared/bre.ts. The SERVER decides; the client runs the
+same function for a live checklist:
+  Age        23 to 50 inclusive (birthday-accurate)
+  Salary     at least Rs 25,000 per month
+  PAN        ^[A-Z]{3}[ABCFGHLJPT][A-Z][0-9]{4}[A-Z]$  (4th char = holder type)
+  Employment not UNEMPLOYED
+  -> returns ALL failed rules at once (HTTP 422), re-checked again at apply time
+
+Loan math (shared/loanMath.ts, integer paise):
+  SI = (P x 12 x T) / (365 x 100), T = days; Total = P + SI
+  Example: Rs 1,00,000 for 180 days -> SI Rs 5,917.81 -> Total Rs 1,05,917.81
+  Limits: amount Rs 50,000 to 5,00,000; tenure 30 to 365 days
+  The server recalculates on apply and ignores any totals sent by the client.
+
+Dates: all business dates use India time (IST), so "today" is correct even at
+midnight-5:30 AM on a UTC server (a real bug found and fixed).
+
+Loan state machine (loanStateMachine.ts):
+  APPLIED --approve (SANCTION/ADMIN)--> SANCTIONED --disburse (DISBURSEMENT/ADMIN)
+     |                                                        |
+     +--reject + reason (SANCTION/ADMIN)--> REJECTED          v
+                                  DISBURSED --fully repaid (SYSTEM)--> CLOSED
+  - Every change is conditional on the current status, so if two people click at
+    once, one wins and the other gets 409
+  - Any other transition gets 409 INVALID_TRANSITION
+  - One open loan per borrower; they can re-apply after CLOSED or REJECTED
+
+Payments (Collection):
+  - Loan must be DISBURSED; amount > 0, max 2 decimals, <= outstanding
+    (no overpayment)
+  - Payment date not in the future and not before disbursement
+  - UTR: 6-30 letters/numbers, uppercase, globally unique (409 on duplicate)
+  - ONE TRANSACTION: insert payment + increase amountPaid + audit +
+    notification + auto-close when outstanding = 0
+
+Assignment:
+  - Every loan has an assignee for its current stage, chosen automatically as
+    the active executive of that role with the FEWEST open loans
+  - Re-assigned automatically on each stage change; ADMIN can re-assign manually
+  - Any executive of the role may still act; the audit log records
+    "assignedTo" and whether the assignee did it
+
+
+--------------------------------------------------------------------------------
+ 7. SECURITY & ROLE-BASED ACCESS (RBAC)
+--------------------------------------------------------------------------------
+  - Passwords: bcrypt (10 rounds); login compares against a dummy hash for
+    unknown emails, so response time doesn't reveal which emails exist
+  - JWT in an httpOnly, SameSite=Lax cookie (JavaScript can't read it)
+  - Next.js proxies /api/* to Express: same origin, no CORS problems
+  - authenticate: 401 if not logged in; reloads the user from the DB on every
+    request (so deactivation or a role change applies immediately)
+  - authorize(...roles): 403 if wrong role; ADMIN always allowed
+  - borrowerOnly: borrower portal is BORROWER-only (admin too gets 403)
+  - Public sign-up always creates BORROWER (sending role:ADMIN is ignored)
+  - Frontend middleware.ts redirects users away from pages they can't use
+    (with a "no access" message). The API enforces the same rules, so hiding
+    menus is not the only protection.
+  - Each module only sees its own statuses (e.g. Sanction can't read a
+    Collection loan)
+  - Uploads: PDF/JPG/PNG only, max 5 MB (413), file type checked by its first
+    bytes, not just the name (415), random stored name, never served
+    publicly; only owner, SANCTION and ADMIN can open them
+  - helmet security headers, rate limit on login/register, 100kb JSON limit,
+    regex-escaped search, logs hide passwords and cookies
+
+HTTP status codes used:
+  200/201 ok, 400 validation, 401 not logged in, 403 wrong role, 404 not found,
+  409 conflict (duplicate email/UTR/PAN, open loan exists, invalid transition),
+  413 file too big, 415 wrong file type, 422 BRE rejected,
+  503 database unavailable, 500 unexpected
+
+
+--------------------------------------------------------------------------------
+ 8. COMPLIANCE FEATURES
+--------------------------------------------------------------------------------
+  - Key Fact Statement card before Apply (amount, 12% rate, tenure, interest,
+    Rs 0 fees, total)
+  - Consent checkbox, enforced by the server (400 without it), stored with
+    terms version, time and IP
+  - PAN masking: ABCPE****F for roles that don't verify identity
+    (full PAN: ADMIN, SANCTION, the borrower)
+  - Append-only audit log of every action (who, role, what, when, loan,
+    borrower, IP)
+  - Every document view by staff is logged ("who reviewed the documents")
+  - Separation of duties: the sanctioner can't disburse, the disburser can't
+    approve
+  - Action + audit entry + notification saved in ONE transaction (no approval
+    without a record)
+
+
+--------------------------------------------------------------------------------
+ 9. NOTIFICATIONS, DUE DATES & OVERDUE
+--------------------------------------------------------------------------------
+Repayment model: ONE repayment of the full amount, due on the due date
+(no monthly EMIs in this assignment). dueDate = disbursement date + tenure
+(IST), stored on the loan.
+
+In-app notifications (bell icon with unread count, for borrowers AND staff):
+  Borrower: approved / rejected (with reason) / money sent (with due date) /
+            payment received / loan closed / due tomorrow / overdue
+  Staff   : new loan assigned to you / re-assigned / borrower overdue alert
+
+Reminder job (notifications/reminderJob.ts):
+  - Runs when the server starts, then every 60 minutes
+    (REMINDER_INTERVAL_MINUTES)
+  - Admin button "Run reminder check now" on Overview (POST
+    /api/admin/jobs/reminders)
+  - ~24h before: "Payment due tomorrow" to the borrower
+  - Overdue: reminder to the borrower on day 1, 3, 7, then every 7 days;
+    the assigned collection executive gets an alert on the same days
+  - Unique key per loan per day, so running it many times never sends
+    duplicates
+  - Overdue loans: red "Overdue - Nd" badge, Collection "Overdue" tab (most
+    overdue first), red banner for the borrower, "Overdue loans" count on admin
+    Overview
+  - Not built on purpose: late fees / penal interest (would change the graded
+    loan math); email/SMS (records are ready for it)
+
+
+--------------------------------------------------------------------------------
+10. API ENDPOINTS  (all under /api; reply format {success, data | error})
+--------------------------------------------------------------------------------
+Auth
+  POST  /auth/register                     public  -> 201, creates BORROWER
+  POST  /auth/login                        public  -> sets cookie
+  POST  /auth/logout                       any
+  GET   /auth/me                           logged in
+Borrower (BORROWER only)
+  GET   /borrower/state                    profile + current step
+  PUT   /borrower/profile                  runs BRE (200 / 422)
+  POST  /borrower/salary-slip              multipart "file" (201/413/415)
+  POST  /loans                             {principal, tenureDays,
+                                            consentAccepted:true}
+  GET   /loans/me, /loans/me/:id
+Documents
+  GET   /documents/:id                     owner, SANCTION, ADMIN (logged)
+Sales (SALES/ADMIN)
+  GET   /sales/leads?stage=&search=&page=
+Sanction (SANCTION/ADMIN)
+  GET   /sanction/loans?status=&search=&mine=&page=, /sanction/loans/:id
+  PATCH /sanction/loans/:id/approve
+  PATCH /sanction/loans/:id/reject         {reason} (min 10 chars)
+Disbursement (DISBURSEMENT/ADMIN)
+  GET   /disbursement/loans, /disbursement/loans/:id
+  PATCH /disbursement/loans/:id/disburse
+Collection (COLLECTION/ADMIN)
+  GET   /collection/loans?overdue=true..., /collection/loans/:id
+  GET   /collection/loans/:id/payments
+  POST  /collection/loans/:id/payments     {utr, amount, paymentDate}
+Audit
+  GET   /audit/me                          own history (any logged-in user)
+  GET   /audit/loans/:id                   SANCTION/DISBURSEMENT/COLLECTION/ADMIN
+Notifications (any logged-in user)
+  GET   /notifications
+  PATCH /notifications/read-all, /notifications/:id/read
+Admin (ADMIN only)
+  GET   /admin/stats                       totals, loans by status, overdue count
+  GET   /admin/users?role=&search=&page=   users + activity counts
+  GET   /admin/users/:id                   summary
+  GET   /admin/users/:id/details           side panel: profile, BRE, documents,
+                                           loans
+  GET   /admin/users/:id/activity          history
+  PATCH /admin/loans/:id/assign            {assigneeId}
+  POST  /admin/jobs/reminders              run reminder job now
+Health
+  GET   /health
+
+
+--------------------------------------------------------------------------------
+11. SCREENS (FRONTEND)
+--------------------------------------------------------------------------------
+Public   : Landing page, Login (6 demo buttons), Register
+Borrower : /apply  3 steps with an icon stepper:
+             1. About you: live eligibility checklist, PAN auto-uppercase,
+                Rs salary with Indian commas, big work-type cards
+             2. Salary slip: drag & drop / tap, type & size check
+             3. Your loan: sliders + -/+ buttons + quick chips, live
+                "You get / You pay back", Key Facts card, "I agree" consent,
+                confirm popup
+           /my-loans  status timeline, paid/left progress bar, due date,
+                      due-soon / overdue banners, rejection reason
+           Bell icon with notifications; bottom tab bar on phones
+Dashboard: Sidebar shows only allowed modules; bell icon; mobile drawer menu
+  Overview (admin)  money totals, overdue count, loans-by-status bar, module
+                    shortcuts, "Run reminder check now"
+  Sales             leads by stage + search; ADMIN can click a lead -> side panel
+  Sanction          Waiting / Approved / Rejected tabs; review popup with slip,
+                    Approve, Reject + reason
+  Disbursement      Ready / Disbursed tabs; "Mark as disbursed" confirm
+  Collection        Active / Overdue / Closed tabs; payment form, payment history,
+                    progress, auto-close celebration
+  Every loan popup  Details tab (assignee, re-assign for admin, applicant info,
+                    slip) + Audit trail tab
+  Users & history   (admin) all users with action counts -> SIDE PANEL:
+                    Overview (account, personal details, BRE result per rule),
+                    Documents (PDF/image preview inside the panel),
+                    Loans, History
+  My activity       (executives) own audit history
+UX for low-literacy users: icon + word everywhere, big buttons (48px+),
+plain-language errors, colour + icon for status, mobile-first layout.
+
+
+--------------------------------------------------------------------------------
+12. TESTING
+--------------------------------------------------------------------------------
+  npm test  ->  39 tests, all passing
+  shared (10):  BRE boundaries (age 22/23/50/51 incl. birthday, salary
+                24,999.99/25,000, PAN formats, unemployed, all failures at
+                once), loan math (worked example, min/max, rounding)
+  backend (29, real MongoDB replica set in memory):
+    auth (borrower-only sign-up, 409/401), RBAC 401/403 + admin access,
+    BRE 422, step order enforced, upload 415/413/spoofed file, consent and
+    ranges, server-side math, one open loan, document access, state machine
+    409s, PAN masking, payments (overpay, decimals, future date, duplicate UTR
+    rollback, auto-close), audit trail, re-apply after close, reject reason,
+    sales leads, audit log + borrower history, users list, re-assignment,
+    append-only audit, notifications per step, overdue filter, reminder
+    dedupe, admin job trigger, reminder schedule
+
+Also verified by hand against the running app: full flow (BRE fail -> pass ->
+upload -> apply -> approve -> disburse -> pay -> duplicate UTR -> overpay ->
+final pay -> CLOSED), every page loads per role, every forbidden page
+redirects.
+
+
+--------------------------------------------------------------------------------
+13. ISSUES FOUND & FIXED ALONG THE WAY
+--------------------------------------------------------------------------------
+  - ZodError from the shared package returned 500 -> error handler now checks
+    the error's shape instead of using instanceof (two zod copies)
+  - "Today" rejected as a future date between 00:00 and 05:30 IST -> all
+    business dates now use IST
+  - Backend crashed without .env -> env files created; local DB added to
+    "npm run dev"
+  - Login hung 30s when the DB was down -> 5s timeout + friendly 503 message
+  - Admin could create a borrower profile via the portal -> borrower routes are
+    now BORROWER-only
+
+
+--------------------------------------------------------------------------------
+14. STILL TO DO (for submission)
+--------------------------------------------------------------------------------
+  [ ] README.md (setup, credentials, design decisions answering every
+      "Think about" question in the PDF, ER + state diagrams, API table)
+  [ ] git init + clean commits, push to GitHub (add evaluator if private)
+  [ ] Record 3-5 min video (YouTube unlisted / Drive):
+      borrower BRE fail -> pass -> upload -> sliders/KFS/consent -> apply ->
+      sanction (view slip, approve) -> disburse -> payments (duplicate UTR
+      rejected) -> auto close -> audit trail -> RBAC redirect -> reminders
+  [ ] Optional: deploy (Vercel + Render + Atlas)
+  [ ] Optional: let Sales record lead follow-ups; Sales-safe lead view
+
+================================================================================
