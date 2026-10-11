@@ -3,6 +3,7 @@ import { DocumentModel, Loan, type IDocument } from '../../models';
 import { ApiError } from '../../utils/ApiError';
 import { openFile } from '../../utils/fileStore';
 import { recordAudit } from '../audit/audit.service';
+import { visibleLoansFilter } from '../loans/visibility';
 
 /** Roles that may open any borrower's documents (to verify identity and income before approving). */
 const REVIEWER_ROLES: Role[] = ['ADMIN', 'SANCTION'];
@@ -22,6 +23,11 @@ export async function openDocument(
 
   const isOwner = doc.owner.toString() === viewer.id;
   if (!isOwner && !REVIEWER_ROLES.includes(viewer.role)) throw ApiError.forbidden();
+  // A reviewer only sees documents attached to loans they can see (Admin: all).
+  if (!isOwner && viewer.role !== 'ADMIN') {
+    const onOwnLoan = await Loan.exists({ $and: [{ $or: [{ salarySlip: doc._id }, { panCard: doc._id }] }, visibleLoansFilter(viewer)] });
+    if (!onOwnLoan) throw ApiError.notFound('Document not found');
+  }
 
   if (!isOwner) {
     const loan = await Loan.findOne({ $or: [{ salarySlip: doc._id }, { panCard: doc._id }] }).sort({ createdAt: -1 }).select('_id').lean();

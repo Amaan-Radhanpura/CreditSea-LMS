@@ -5,9 +5,7 @@ import { CalendarDays, HandCoins, Hash, IndianRupee, PartyPopper, Plus, Receipt 
 import { toast } from 'sonner';
 import { formatINR, paymentSchema, toBusinessDate, type LoanDTO, type PaymentDTO, type PaymentResultDTO } from '@lms/shared';
 import { PageHeader } from '@/components/dashboard/DashboardShell';
-import { useAuth } from '@/components/AuthProvider';
 import { LoanDetails } from '@/components/dashboard/LoanDetails';
-import { TakeOverBanner, canActOn } from '@/components/dashboard/TakeOverBanner';
 import { RepaymentSchedule } from '@/components/RepaymentSchedule';
 import { LoanQueue } from '@/components/dashboard/LoanQueue';
 import { Button } from '@/components/ui/Button';
@@ -66,7 +64,6 @@ function PaymentForm({ loan, onRecorded }: { loan: LoanDTO; onRecorded: (r: Paym
 
 function CollectionModal({ initial, close, done }: { initial: LoanDTO; close: () => void; done: () => void }) {
   const [loan, setLoan] = useState(initial);
-  const { user } = useAuth();
   const [payments, setPayments] = useState<PaymentDTO[] | null>(null);
   const [changed, setChanged] = useState(false);
 
@@ -113,8 +110,7 @@ function CollectionModal({ initial, close, done }: { initial: LoanDTO; close: ()
           )}
         </div>
 
-        {loan.status === 'DISBURSED' && <TakeOverBanner loan={loan} module="collection" onTaken={setLoan} />}
-        {loan.status === 'DISBURSED' && canActOn(loan, user) && <PaymentForm key={loan.amountPaid} loan={loan} onRecorded={onRecorded} />}
+        {loan.status === 'DISBURSED' && <PaymentForm key={loan.amountPaid} loan={loan} onRecorded={onRecorded} />}
 
         <RepaymentSchedule loan={loan} compact />
         {loan.status === 'CLOSED' && (

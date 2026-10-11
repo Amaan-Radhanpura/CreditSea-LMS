@@ -24,6 +24,6 @@ auditRouter.get(
   validateObjectId('id'),
   asyncHandler(async (req, res) => {
     const { page, limit } = activityQuerySchema.parse(req.query);
-    sendOk(res, await listLoanAudit(req.params.id!, page, limit));
+    sendOk(res, await listLoanAudit(req.params.id!, req.user!, page, limit));
   }),
 );

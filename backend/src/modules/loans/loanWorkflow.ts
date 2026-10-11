@@ -139,7 +139,8 @@ export async function performTransition(loanId: string, action: LoanAction, acto
     session,
     note: opts.note,
     set: {
-      assignee: nextAssignee?._id ?? null,
+      // Next stage's executive; a closed loan keeps its collector, a rejected one has no pending work.
+      assignee: nextAssignee?._id ?? (action === 'CLOSE' ? (before.assignee?._id ?? null) : null),
       ...(opts.rejectionReason && { rejectionReason: opts.rejectionReason }),
       ...(schedule && { instalments: schedule, dueDate: new Date(dueDate!), ...firstDue }),
     },
@@ -202,42 +203,5 @@ export async function reassignLoan(loanId: string, assigneeId: string, admin: { 
       session,
     );
     await notify([{ user: assignee._id, type: 'LOAN_ASSIGNED', title: 'Loan re-assigned to you', message: `An admin assigned you a loan to ${STAGE_TASK[stage]}.`, loan: loanId }], session);
-  });
-}
-
-/**
- * "Take over": an executive of the role that owns the loan's current stage assigns it to themselves.
- * Audited, and the previous assignee is notified, so accountability is never lost.
- */
-export async function takeOverLoan(loanId: string, actor: { id: string; name: string; role: Role }, ipAddress?: string) {
-  return runInTransaction(async (session) => {
-    const loan = await Loan.findById(loanId).select('status assignee borrower applicant.fullName').populate<{ assignee: Assignee | null }>('assignee', 'name').session(session).lean();
-    if (!loan) throw ApiError.notFound('Loan not found');
-    const stage = STAGE_OWNER[loan.status];
-    if (!stage) throw ApiError.conflict(`A ${loan.status.toLowerCase()} loan has no pending work to take over`, 'NOT_ASSIGNABLE');
-    if (actor.role !== stage) throw ApiError.forbidden(`Only a ${stage.toLowerCase()} executive can take over this loan`);
-    if (loan.assignee?._id.toString() === actor.id) return; // already yours
-
-    // Conditional on the current assignee, so two people taking over at once can't both win.
-    const res = await Loan.updateOne({ _id: loanId, status: loan.status, assignee: loan.assignee?._id ?? null }, { $set: { assignee: actor.id } }, { session });
-    if (res.modifiedCount !== 1) throw ApiError.conflict('Someone else just took this loan over. Please refresh', 'ASSIGNMENT_CHANGED');
-
-    await recordAudit(
-      {
-        actor,
-        action: 'LOAN_ASSIGNED',
-        loanId,
-        subjectUserId: loan.borrower,
-        ipAddress,
-        details: { stage, assigneeId: actor.id, assigneeName: actor.name, previousAssignee: loan.assignee?.name ?? null, reason: `Taken over by ${actor.name}` },
-      },
-      session,
-    );
-    if (loan.assignee) {
-      await notify(
-        [{ user: loan.assignee._id, type: 'LOAN_ASSIGNED', title: 'Loan taken over', message: `${actor.name} took over ${loan.applicant.fullName}'s loan from you.`, loan: loanId }],
-        session,
-      );
-    }
   });
 }

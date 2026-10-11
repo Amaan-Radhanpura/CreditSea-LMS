@@ -313,7 +313,7 @@ async function main() {
       log('LOAN_CLOSED', 'SYSTEM', { from: 'DISBURSED', to: 'CLOSED', note: 'Auto-closed: loan fully repaid' }, at, loanId);
     }
 
-    const currentAssignee: Partial<Record<LoanStatus, StaffUser>> = { APPLIED: sanctionExec, SANCTIONED: disburseExec, DISBURSED: collectionExec };
+    const currentAssignee: Partial<Record<LoanStatus, StaffUser>> = { APPLIED: sanctionExec, SANCTIONED: disburseExec, DISBURSED: collectionExec, CLOSED: collectionExec };
     await Loan.collection.insertOne({
       _id: loanId,
       borrower: uid,

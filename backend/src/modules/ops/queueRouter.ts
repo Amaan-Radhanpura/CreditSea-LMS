@@ -1,10 +1,12 @@
 import { Router } from 'express';
+import { isValidObjectId } from 'mongoose';
 import { listQuerySchema, type ExecutiveRole, type LoanStatus } from '@lms/shared';
 import { authenticate, authorize } from '../../middleware/auth';
 import { validateObjectId } from '../../middleware/validate';
 import { asyncHandler, sendOk } from '../../utils/http';
+import { ApiError } from '../../utils/ApiError';
 import * as loanService from '../loans/loan.service';
-import { takeOverLoan } from '../loans/loanWorkflow';
+import { assertCanSeeLoan } from '../loans/visibility';
 
 /**
  * Builds the router shared by every loan-based ops module (Sanction, Disbursement, Collection):
@@ -14,6 +16,13 @@ import { takeOverLoan } from '../loans/loanWorkflow';
 export function createQueueRouter(role: ExecutiveRole, scope: readonly LoanStatus[]): Router {
   const router = Router();
   router.use(authenticate, authorize(role));
+
+  // Every route with a loan :id (detail, actions, payments) first checks the loan is in this module
+  // AND belongs to the caller; otherwise 404, so other executives' loans are invisible.
+  router.param('id', (req, _res, next, id: string) => {
+    if (!isValidObjectId(id)) return next(ApiError.badRequest('Invalid id', undefined, 'INVALID_ID'));
+    assertCanSeeLoan(id, req.user!, scope).then(() => next(), next);
+  });
 
   router.get(
     '/loans',
@@ -27,17 +36,6 @@ export function createQueueRouter(role: ExecutiveRole, scope: readonly LoanStatu
     validateObjectId('id'),
     asyncHandler(async (req, res) => {
       sendOk(res, await loanService.findLoanDTO(req.params.id!, req.user!.role, { status: { $in: scope } }));
-    }),
-  );
-
-  /** Assign the loan's current stage to yourself (audited; the previous assignee is notified). */
-  router.post(
-    '/loans/:id/take-over',
-    validateObjectId('id'),
-    asyncHandler(async (req, res) => {
-      await loanService.findLoanDTO(req.params.id!, req.user!.role, { status: { $in: scope } }); // 404 if out of this module's scope
-      await takeOverLoan(req.params.id!, req.user!, req.ip);
-      sendOk(res, await loanService.findLoanDTO(req.params.id!, req.user!.role));
     }),
   );
 

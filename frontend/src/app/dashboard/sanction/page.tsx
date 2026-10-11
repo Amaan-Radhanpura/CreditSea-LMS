@@ -5,22 +5,18 @@ import { CheckCircle2, ScrollText, XCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { rejectLoanSchema, type LoanDTO } from '@lms/shared';
 import { PageHeader } from '@/components/dashboard/DashboardShell';
-import { useAuth } from '@/components/AuthProvider';
 import { LoanDetails } from '@/components/dashboard/LoanDetails';
-import { TakeOverBanner, canActOn } from '@/components/dashboard/TakeOverBanner';
 import { LoanQueue } from '@/components/dashboard/LoanQueue';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import { api, errorMessage } from '@/lib/api';
 
-function SanctionModal({ loan: initial, close, done }: { loan: LoanDTO; close: () => void; done: () => void }) {
-  const [loan, setLoan] = useState(initial);
-  const { user } = useAuth();
+function SanctionModal({ loan, close, done }: { loan: LoanDTO; close: () => void; done: () => void }) {
   const [rejecting, setRejecting] = useState(false);
   const [reason, setReason] = useState('');
   const [reasonError, setReasonError] = useState('');
   const [busy, setBusy] = useState<'approve' | 'reject' | null>(null);
-  const pending = loan.status === 'APPLIED' && canActOn(loan, user);
+  const pending = loan.status === 'APPLIED';
 
   async function approve() {
     setBusy('approve');
@@ -78,8 +74,7 @@ function SanctionModal({ loan: initial, close, done }: { loan: LoanDTO; close: (
         ))
       }
     >
-      {loan.status === 'APPLIED' && <TakeOverBanner loan={loan} module="sanction" onTaken={setLoan} />}
-      <LoanDetails key={loan.assignee?.id} loan={loan} showSlip />
+      <LoanDetails loan={loan} showSlip />
       {rejecting && (
         <div className="mt-6 animate-fade-in">
           <label htmlFor="reason" className="font-semibold text-slate-700">

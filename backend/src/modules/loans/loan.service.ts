@@ -23,6 +23,7 @@ import { recordAudit } from '../audit/audit.service';
 import { notify } from '../notifications/notification.service';
 import { auditAssignment, pickAssignee, runInTransaction } from './loanWorkflow';
 import { buildSchedule } from './schedule';
+import { visibleLoansFilter } from './visibility';
 import { LOAN_POPULATE, toLoanDTO, type LoanWithRefs } from '../mappers';
 
 export async function findLoanDTO(loanId: string, viewer: Role, filter: FilterQuery<ILoan> = {}): Promise<LoanDTO> {
@@ -131,7 +132,7 @@ export async function listLoans(scope: readonly LoanStatus[], query: ListQuery, 
     throw ApiError.badRequest(`Status must be one of: ${scope.join(', ')}`, undefined, 'INVALID_STATUS');
   }
 
-  const filter: FilterQuery<ILoan> = { status: query.status ?? { $in: scope } };
+  const filter: FilterQuery<ILoan> = { status: query.status ?? { $in: scope }, $and: [visibleLoansFilter(viewer)] };
   if (query.mine === 'true') filter.assignee = viewer.id;
   if (query.overdue === 'true') {
     filter.status = 'DISBURSED';

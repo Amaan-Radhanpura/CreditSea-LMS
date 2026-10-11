@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { ChevronRight, UserCheck } from 'lucide-react';
+import { ChevronRight } from 'lucide-react';
 import { useAuth } from '@/components/AuthProvider';
 import { formatINR, type LoanDTO, type LoanStatus } from '@lms/shared';
 import { EmptyState, ErrorState, Skeleton } from '@/components/ui/Feedback';
@@ -51,15 +51,12 @@ export function LoanQueue({ module, tabs, actionLabel, showRepayment, renderDeta
   const [page, setPage] = useState(1);
   const [selected, setSelected] = useState<LoanDTO | null>(null);
   const { user } = useAuth();
-  const isAdmin = user?.role === 'ADMIN';
-  const [mine, setMine] = useState(false);
   const { data, error, loading, reload } = usePaginated<LoanDTO>(`/${module}/loans`, {
     status: tab.status,
     overdue: tab.overdue ? 'true' : undefined,
     search,
     page,
     limit: 10,
-    mine: mine ? 'true' : undefined,
   });
 
   const reset = <T,>(set: (v: T) => void) => (v: T) => {
@@ -72,15 +69,6 @@ export function LoanQueue({ module, tabs, actionLabel, showRepayment, renderDeta
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <Tabs tabs={tabs} value={tabValue} onChange={reset(setTabValue)} />
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-          {!isAdmin && (
-            <button
-              onClick={() => reset(setMine)(!mine)}
-              aria-pressed={mine}
-              className={`inline-flex h-11 items-center justify-center gap-2 rounded-xl px-4 text-sm font-semibold ring-1 transition ${mine ? 'bg-indigo-600 text-white ring-indigo-600' : 'bg-white text-slate-600 ring-slate-200 hover:ring-indigo-300'}`}
-            >
-              <UserCheck className="size-4" /> Assigned to me
-            </button>
-          )}
           <SearchBox value={search} onChange={reset(setSearch)} placeholder="Search name or PAN" />
         </div>
       </div>

@@ -194,7 +194,8 @@ describe('Borrower journey + loan lifecycle', () => {
     const sanction = await loginAs('SANCTION');
     const disbursement = await loginAs('DISBURSEMENT');
 
-    await disbursement.patch(`/api/disbursement/loans/${loanId}/disburse`).expect(409);
+    // Not approved yet, so it isn't in any disbursement queue: "not found", nothing changes
+    await disbursement.patch(`/api/disbursement/loans/${loanId}/disburse`).expect(404);
     const approved = await sanction.patch(`/api/sanction/loans/${loanId}/approve`).expect(200);
     expect(approved.body.data.status).toBe('SANCTIONED');
     await sanction.patch(`/api/sanction/loans/${loanId}/approve`).expect(409);
@@ -341,15 +342,16 @@ describe('Due dates, overdue tracking and notifications', () => {
     const [overdue, dueSoon] = await Loan.find({ status: { $in: ['APPLIED', 'REJECTED'] } }).sort({ status: 1 }).limit(2).lean();
     expect(dueSoon).toBeDefined();
     const today = new Date(toBusinessDate());
+    const collection = await loginAs('COLLECTION');
+    const collector = await User.findOne({ email: 'collection@test.dev' }).lean();
     const makeDue = (loan: typeof overdue, due: Date) =>
       Loan.collection.updateOne(
         { _id: loan!._id },
-        { $set: { status: 'DISBURSED', dueDate: due, nextDueDate: due, nextDueAmount: loan!.totalRepayment - loan!.amountPaid, 'instalments.0.dueDate': due, disbursedAt: new Date(Date.now() - 40 * DAY) } },
+        { $set: { status: 'DISBURSED', assignee: collector!._id, dueDate: due, nextDueDate: due, nextDueAmount: loan!.totalRepayment - loan!.amountPaid, 'instalments.0.dueDate': due, disbursedAt: new Date(Date.now() - 40 * DAY) } },
       );
     await makeDue(overdue, new Date(today.getTime() - 3 * DAY));
     await makeDue(dueSoon, new Date(today.getTime() + DAY));
 
-    const collection = await loginAs('COLLECTION');
     const list = await collection.get('/api/collection/loans?overdue=true').expect(200);
     expect(list.body.data.items.map((l: { id: string }) => l.id)).toContain(overdue!._id.toString());
     expect(list.body.data.items[0]).toMatchObject({ isOverdue: true, daysOverdue: 3 });
@@ -456,52 +458,63 @@ describe('Monthly EMI repayment plan', () => {
   });
 });
 
-describe('Only the assigned executive can act on a loan', () => {
-  it('blocks other executives, allows take-over, and keeps the admin override', async () => {
+describe('Executives only see the loans assigned to them', () => {
+  const ids = (res: request.Response) => res.body.data.items.map((l: { id: string }) => l.id);
+
+  it("hides other executives' loans everywhere (404), while the assignee and admin can work on them", async () => {
     const borrower = request.agent(app);
     await signup(borrower, { name: 'Assign Test', email: 'assign@test.dev' }).expect(201);
     const loan = (await borrower.post('/api/loans').send({ principal: 60000, tenureDays: 60, consentAccepted: true }).expect(201)).body.data;
     const owner = await User.findById(loan.assignee.id).lean();
+    const ownerAgent = request.agent(app);
+    await User.updateOne({ _id: owner!._id }, { $set: { passwordHash: await hashPassword(PASSWORD) } });
+    await ownerAgent.post('/api/auth/login').send({ email: owner!.email, password: PASSWORD }).expect(200);
 
     // A second sanction executive who is NOT the assignee
     const other = await User.create({ name: 'Other Sanction', email: 'other.sanction@test.dev', role: 'SANCTION', passwordHash: await hashPassword(PASSWORD) });
     const otherAgent = request.agent(app);
     await otherAgent.post('/api/auth/login').send({ email: other.email, password: PASSWORD }).expect(200);
 
-    const blocked = await otherAgent.patch(`/api/sanction/loans/${loan.id}/approve`).expect(403);
-    expect(blocked.body.error.code).toBe('NOT_ASSIGNEE');
-    expect(blocked.body.error.message).toContain(owner!.name);
+    // Not in their queue, and the detail, actions, audit trail and documents all say "not found"
+    expect(ids(await otherAgent.get('/api/sanction/loans?status=APPLIED').expect(200))).not.toContain(loan.id);
+    await otherAgent.get(`/api/sanction/loans/${loan.id}`).expect(404);
+    await otherAgent.patch(`/api/sanction/loans/${loan.id}/approve`).expect(404);
+    await otherAgent.patch(`/api/sanction/loans/${loan.id}/reject`).send({ reason: 'Not mine to reject' }).expect(404);
+    await otherAgent.get(`/api/audit/loans/${loan.id}`).expect(404);
+    await otherAgent.get(`/api/documents/${loan.salarySlip.id}`).expect(404);
+    // There is no "take over" any more
+    await otherAgent.post(`/api/sanction/loans/${loan.id}/take-over`).expect(404);
 
-    // Wrong role cannot take it over
-    await (await loginAs('COLLECTION')).post(`/api/sanction/loans/${loan.id}/take-over`).expect(403);
+    // The assignee sees it and can open the documents; admin sees everything
+    expect(ids(await ownerAgent.get('/api/sanction/loans?status=APPLIED').expect(200))).toContain(loan.id);
+    await ownerAgent.get(`/api/documents/${loan.salarySlip.id}`).expect(200);
+    const admin = await loginAs('ADMIN');
+    expect(ids(await admin.get('/api/sanction/loans?status=APPLIED').expect(200))).toContain(loan.id);
 
-    // Take over: now the other executive owns it, the previous owner is notified, and it's audited
-    const taken = await otherAgent.post(`/api/sanction/loans/${loan.id}/take-over`).expect(200);
-    expect(taken.body.data.assignee).toMatchObject({ id: other._id.toString(), name: 'Other Sanction' });
-    expect(await Notification.countDocuments({ user: owner!._id, title: 'Loan taken over' })).toBe(1);
-    const trail = await AuditLog.findOne({ loan: loan.id, action: 'LOAN_ASSIGNED', 'details.reason': 'Taken over by Other Sanction' }).lean();
-    expect(trail!.details).toMatchObject({ previousAssignee: owner!.name });
-
-    // The previous owner is now the one blocked; the new owner can approve
-    const ownerAgent = request.agent(app);
-    await User.updateOne({ _id: owner!._id }, { $set: { passwordHash: await hashPassword(PASSWORD) } });
-    await ownerAgent.post('/api/auth/login').send({ email: owner!.email, password: PASSWORD }).expect(200);
-    await ownerAgent.patch(`/api/sanction/loans/${loan.id}/approve`).expect(403);
-    await otherAgent.patch(`/api/sanction/loans/${loan.id}/approve`).expect(200);
+    // After approval the loan stays in the approver's "Approved" tab, but not in anyone else's
+    await ownerAgent.patch(`/api/sanction/loans/${loan.id}/approve`).expect(200);
+    expect(ids(await ownerAgent.get('/api/sanction/loans?status=SANCTIONED').expect(200))).toContain(loan.id);
+    expect(ids(await otherAgent.get('/api/sanction/loans?status=SANCTIONED').expect(200))).not.toContain(loan.id);
 
     // Admin (supervisor) can act regardless of assignment
-    const disbursed = await (await loginAs('ADMIN')).patch(`/api/disbursement/loans/${loan.id}/disburse`).expect(200);
+    const disbursed = await admin.patch(`/api/disbursement/loans/${loan.id}/disburse`).expect(200);
     expect(disbursed.body.data.status).toBe('DISBURSED');
   });
 
-  it('applies to payments too', async () => {
+  it('applies to collection and payments too', async () => {
     const loan = await Loan.findOne({ 'applicant.fullName': 'Test Person', status: 'DISBURSED' }).lean();
-    const assignee = await User.findById(loan!.assignee).lean();
+    expect(loan!.assignee).toBeTruthy(); // assigned to a collection executive at disbursement
     const intruder = await User.create({ name: 'Other Collector', email: 'other.collector@test.dev', role: 'COLLECTION', passwordHash: await hashPassword(PASSWORD) });
-    expect(assignee).toBeTruthy(); // assigned to the existing collection executive at disbursement
     const agent = request.agent(app);
     await agent.post('/api/auth/login').send({ email: intruder.email, password: PASSWORD }).expect(200);
-    const res = await agent.post(`/api/collection/loans/${loan!._id}/payments`).send({ utr: 'INTRUDER01', amount: 100, paymentDate: today }).expect(403);
-    expect(res.body.error.code).toBe('NOT_ASSIGNEE');
+    expect(ids(await agent.get('/api/collection/loans').expect(200))).not.toContain(loan!._id.toString());
+    await agent.post(`/api/collection/loans/${loan!._id}/payments`).send({ utr: 'INTRUDER01', amount: 100, paymentDate: today }).expect(404);
+  });
+
+  it('keeps the collector on a loan after it closes, so it stays in their Closed tab', async () => {
+    const closed = await Loan.findOne({ status: 'CLOSED', 'applicant.fullName': 'Asha Rao' }).lean();
+    const collector = await User.findOne({ email: 'collection@test.dev' }).lean();
+    expect(closed!.assignee?.toString()).toBe(collector!._id.toString());
+    expect(ids(await (await loginAs('COLLECTION')).get('/api/collection/loans?status=CLOSED').expect(200))).toContain(closed!._id.toString());
   });
 });
