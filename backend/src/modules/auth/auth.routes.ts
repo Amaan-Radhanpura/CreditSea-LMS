@@ -3,7 +3,7 @@ import jwt from 'jsonwebtoken';
 import { AUTH_COOKIE, changePasswordSchema, loginSchema, signupSchema, updateAccountSchema, type BreResult, type UserDTO } from '@lms/shared';
 import { env } from '../../config/env';
 import { authenticate, signToken } from '../../middleware/auth';
-import { removeUploads, uploadSignupDocuments } from '../../middleware/upload';
+import { uploadSignupDocuments } from '../../middleware/upload';
 import { validateBody } from '../../middleware/validate';
 import type { IUser } from '../../models';
 import { asyncHandler, sendOk } from '../../utils/http';
@@ -38,15 +38,10 @@ authRouter.post(
   uploadSignupDocuments,
   asyncHandler(async (req, res) => {
     const files = req.files as Record<'salarySlip' | 'panCard', Express.Multer.File[]>;
-    try {
-      const input = signupSchema.parse(req.body);
-      const { user, bre } = await signupBorrower(input, { salarySlip: files.salarySlip[0]!, panCard: files.panCard[0]! }, req.ip);
-      const body: { user: UserDTO; bre: BreResult } = { user: startSession(res, user), bre };
-      sendOk(res, body, 201);
-    } catch (err) {
-      removeUploads(req); // nothing was saved, so don't keep orphan files
-      throw err;
-    }
+    const input = signupSchema.parse(req.body);
+    const { user, bre } = await signupBorrower(input, { salarySlip: files.salarySlip[0]!, panCard: files.panCard[0]! }, req.ip);
+    const body: { user: UserDTO; bre: BreResult } = { user: startSession(res, user), bre };
+    sendOk(res, body, 201);
   }),
 );
 

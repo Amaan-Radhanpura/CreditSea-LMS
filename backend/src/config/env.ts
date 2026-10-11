@@ -11,7 +11,6 @@ const envSchema = z.object({
   JWT_SECRET: z.string().min(32, 'JWT_SECRET must be at least 32 characters'),
   JWT_EXPIRES_IN: z.string().default('1d'),
   CLIENT_ORIGIN: z.string().default('http://localhost:3000'),
-  UPLOAD_DIR: z.string().default('uploads'),
   /** How often the due-date / overdue reminder job runs. 0 disables the scheduler. */
   REMINDER_INTERVAL_MINUTES: z.coerce.number().int().min(0).default(60),
 });
@@ -27,5 +26,4 @@ export const env = {
   ...parsed.data,
   isProd: parsed.data.NODE_ENV === 'production',
   isTest: parsed.data.NODE_ENV === 'test',
-  uploadDir: path.resolve(__dirname, '../..', parsed.data.UPLOAD_DIR),
 };

@@ -1,15 +1,14 @@
-import path from 'path';
 import type { Role } from '@lms/shared';
-import { env } from '../../config/env';
 import { DocumentModel, Loan, type IDocument } from '../../models';
 import { ApiError } from '../../utils/ApiError';
+import { openFile } from '../../utils/fileStore';
 import { recordAudit } from '../audit/audit.service';
 
 /** Roles that may open any borrower's documents (to verify identity and income before approving). */
 const REVIEWER_ROLES: Role[] = ['ADMIN', 'SANCTION'];
 
 /**
- * Returns a document the viewer is allowed to open, plus where the file lives on disk.
+ * Returns a document the viewer is allowed to open, plus a stream of its bytes from GridFS.
  * Owners can always open their own files; reviewers can open anyone's, and every such view is
  * written to the audit log ("who reviewed the documents").
  */
@@ -17,7 +16,7 @@ export async function openDocument(
   documentId: string,
   viewer: { id: string; role: Role },
   ipAddress?: string,
-): Promise<{ doc: IDocument; filePath: string }> {
+): Promise<{ doc: IDocument; stream: ReturnType<typeof openFile> }> {
   const doc = await DocumentModel.findById(documentId).lean();
   if (!doc) throw ApiError.notFound('Document not found');
 
@@ -36,6 +35,5 @@ export async function openDocument(
     });
   }
 
-  // basename() so a stored name can never point outside the upload folder.
-  return { doc, filePath: path.join(env.uploadDir, path.basename(doc.storedName)) };
+  return { doc, stream: openFile(doc.fileId) };
 }

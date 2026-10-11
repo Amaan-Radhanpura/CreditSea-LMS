@@ -13,8 +13,8 @@ import {
   type SignupInput,
 } from '@lms/shared';
 import { BorrowerProfile, DocumentModel, Loan, User, type IUser } from '../../models';
-import { removeFile } from '../../middleware/upload';
 import { ApiError } from '../../utils/ApiError';
+import { deleteFile, saveFile } from '../../utils/fileStore';
 import { recordAudit } from '../audit/audit.service';
 import { hashPassword } from '../auth/auth.service';
 import { runInTransaction } from '../loans/loanWorkflow';
@@ -65,14 +65,15 @@ const profileFields = (input: ProfileInput, bre: BreResult) => ({
 
 const breOf = (input: ProfileInput) => runBre({ ...input, pan: normalizePan(input.pan) });
 
-async function storeDocument(userId: Types.ObjectId | string, kind: DocumentKind, file: Express.Multer.File, session?: ClientSession) {
+/** Puts the file in GridFS (outside the transaction) and creates its metadata document (inside it). */
+async function storeDocument(userId: Types.ObjectId | string, kind: DocumentKind, file: Express.Multer.File, fileId: Types.ObjectId, session?: ClientSession) {
   const [doc] = await DocumentModel.create(
     [
       {
         owner: userId,
         kind,
         originalName: path.basename(file.originalname).slice(0, 255),
-        storedName: file.filename,
+        fileId,
         mimeType: file.mimetype,
         size: file.size,
       },
@@ -81,6 +82,8 @@ async function storeDocument(userId: Types.ObjectId | string, kind: DocumentKind
   );
   return doc!;
 }
+
+const putFile = (file: Express.Multer.File) => saveFile(file.buffer, path.basename(file.originalname), file.mimetype);
 
 /**
  * Borrower sign-up: account + personal details + salary slip + PAN card, all in ONE transaction,
@@ -95,13 +98,16 @@ export async function signupBorrower(
   const bre = breOf(input);
   const passwordHash = await hashPassword(input.password);
 
-  const user = await runInTransaction(async (session) => {
+  // GridFS writes can't join the transaction, so store the files first and delete them if anything fails.
+  const [slipFileId, panFileId] = await Promise.all([putFile(files.salarySlip), putFile(files.panCard)]);
+  try {
+    const user = await runInTransaction(async (session) => {
     const [created] = await User.create([{ name: input.name, email: input.email, passwordHash, role: 'BORROWER' }], { session });
     const uid = created!._id;
     const actor = { id: uid.toString(), role: 'BORROWER' as const };
 
-    const slip = await storeDocument(uid, 'SALARY_SLIP', files.salarySlip, session);
-    const pan = await storeDocument(uid, 'PAN_CARD', files.panCard, session);
+    const slip = await storeDocument(uid, 'SALARY_SLIP', files.salarySlip, slipFileId, session);
+    const pan = await storeDocument(uid, 'PAN_CARD', files.panCard, panFileId, session);
     await BorrowerProfile.create([{ user: uid, ...profileFields(input, bre), salarySlip: slip._id, panCard: pan._id }], { session });
 
     const audit = (action: Parameters<typeof recordAudit>[0]['action'], details: Record<string, unknown>) =>
@@ -116,9 +122,12 @@ export async function signupBorrower(
     await audit('SLIP_UPLOADED', { documentId: slip._id.toString(), fileName: slip.originalName, size: slip.size });
     await audit('PAN_CARD_UPLOADED', { documentId: pan._id.toString(), fileName: pan.originalName, size: pan.size });
     return created!.toObject();
-  });
-
-  return { user, bre };
+    });
+    return { user, bre };
+  } catch (err) {
+    await Promise.all([deleteFile(slipFileId), deleteFile(panFileId)]);
+    throw err;
+  }
 }
 
 /**
@@ -150,12 +159,13 @@ export async function saveProfile(userId: string, input: ProfileInput): Promise<
 
 /** Uploads a new salary slip or PAN card. Old files stay on disk: past loans still reference them. */
 export async function saveDocument(userId: string, kind: DocumentKind, file: Express.Multer.File): Promise<BorrowerStateDTO> {
-  try {
-    const profile = await BorrowerProfile.findOne({ user: userId }).select('_id').lean();
-    if (!profile) throw ApiError.conflict('Please add your personal details first', 'STEP_INCOMPLETE');
-    await assertNoOpenLoan(userId);
+  const profile = await BorrowerProfile.findOne({ user: userId }).select('_id').lean();
+  if (!profile) throw ApiError.conflict('Please add your personal details first', 'STEP_INCOMPLETE');
+  await assertNoOpenLoan(userId);
 
-    const doc = await storeDocument(userId, kind, file);
+  const fileId = await putFile(file);
+  try {
+    const doc = await storeDocument(userId, kind, file, fileId);
     await BorrowerProfile.updateOne({ user: userId }, { $set: { [PROFILE_FIELD[kind]]: doc._id } });
     await recordAudit({
       actor: { id: userId, role: 'BORROWER' },
@@ -164,7 +174,7 @@ export async function saveDocument(userId: string, kind: DocumentKind, file: Exp
       details: { documentId: doc._id.toString(), fileName: doc.originalName, size: doc.size, replaced: true, label: DOCUMENT_LABEL[kind] },
     });
   } catch (err) {
-    removeFile(file.path);
+    await deleteFile(fileId);
     throw err;
   }
   return getBorrowerState(userId);

@@ -6,8 +6,6 @@
  *  - syncs all indexes declared in the schemas
  * Re-running resets the demo data and the test borrower to a known state.
  */
-import fs from 'fs';
-import path from 'path';
 import mongoose, { Types } from 'mongoose';
 import {
   LOAN_RULES,
@@ -24,9 +22,9 @@ import {
   type Role,
 } from '@lms/shared';
 import { connectDB, disconnectDB } from '../config/db';
-import { env } from '../config/env';
 import { AuditLog, BorrowerProfile, DocumentModel, Loan, Notification, Payment, User, type IStatusChange } from '../models';
 import { hashPassword } from '../modules/auth/auth.service';
+import { deleteFile, saveFile } from '../utils/fileStore';
 import { buildSchedule, nextDue, withDueDates } from '../modules/loans/schedule';
 import { runReminderJob } from '../modules/notifications/reminderJob';
 
@@ -167,6 +165,8 @@ async function main() {
   const demoUsers = await User.find({ email: { $regex: `${DEMO_DOMAIN.replace('.', '\\.')}$` } }).select('_id').lean();
   const resetIds = [...demoUsers.map((u) => u._id), testBorrower._id];
   const oldLoans = await Loan.find({ borrower: { $in: resetIds } }).select('_id').lean();
+  const oldFiles = await DocumentModel.find({ owner: { $in: resetIds } }).select('fileId').lean();
+  await Promise.all(oldFiles.filter((d) => d.fileId).map((d) => deleteFile(d.fileId)));
   await Promise.all([
     Payment.deleteMany({ loan: { $in: oldLoans.map((l) => l._id) } }),
     Loan.deleteMany({ borrower: { $in: resetIds } }),
@@ -178,7 +178,6 @@ async function main() {
   ]);
   await User.deleteMany({ _id: { $in: demoUsers.map((u) => u._id) } });
 
-  fs.mkdirSync(env.uploadDir, { recursive: true });
   const audit: AuditRow[] = [];
 
   for (const d of DEMO) {
@@ -211,9 +210,9 @@ async function main() {
     const first = d.name.split(' ')[0]!.toLowerCase();
     const makeDoc = async (kind: 'SALARY_SLIP' | 'PAN_CARD', label: string) => {
       const pdf = samplePdf(`${label} - ${d.name}`);
-      const storedName = `seed-${kind.toLowerCase()}-${uid.toString()}.pdf`;
-      fs.writeFileSync(path.join(env.uploadDir, storedName), pdf);
-      return DocumentModel.create({ owner: uid, kind, originalName: `${kind === 'PAN_CARD' ? 'pan-card' : 'salary-slip'}-${first}.pdf`, storedName, mimeType: 'application/pdf', size: Buffer.byteLength(pdf) });
+      const originalName = `${kind === 'PAN_CARD' ? 'pan-card' : 'salary-slip'}-${first}.pdf`;
+      const fileId = await saveFile(Buffer.from(pdf), originalName, 'application/pdf');
+      return DocumentModel.create({ owner: uid, kind, originalName, fileId, mimeType: 'application/pdf', size: Buffer.byteLength(pdf) });
     };
     const slipDoc = await makeDoc('SALARY_SLIP', 'Salary Slip');
     const panDoc = await makeDoc('PAN_CARD', `PAN ${d.pan}`);
@@ -363,9 +362,8 @@ async function main() {
       ['PAN_CARD', `PAN ${details.pan}`, 'pan-card-bharat.pdf'],
     ] as const) {
       const pdf = samplePdf(`${label} - ${tb.name}`);
-      const storedName = `seed-${kind.toLowerCase()}-${tb._id.toString()}.pdf`;
-      fs.writeFileSync(path.join(env.uploadDir, storedName), pdf);
-      docs.push(await DocumentModel.create({ owner: tb._id, kind, originalName: file, storedName, mimeType: 'application/pdf', size: Buffer.byteLength(pdf) }));
+      const fileId = await saveFile(Buffer.from(pdf), file, 'application/pdf');
+      docs.push(await DocumentModel.create({ owner: tb._id, kind, originalName: file, fileId, mimeType: 'application/pdf', size: Buffer.byteLength(pdf) }));
     }
     const bre = runBre({ dob: details.dob, monthlySalary: details.salary, pan: details.pan, employmentMode: details.mode });
     await BorrowerProfile.create({

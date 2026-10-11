@@ -77,7 +77,6 @@ node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"
 | `JWT_SECRET` | ≥ 32 chars; also set in the frontend |
 | `JWT_EXPIRES_IN` | Session length (default `1d`) |
 | `CLIENT_ORIGIN` | Allowed origin for CORS |
-| `UPLOAD_DIR` | Where uploaded documents are stored |
 | `REMINDER_INTERVAL_MINUTES` | How often the due/overdue reminder job runs (`0` = off) |
 
 `frontend/.env.local` (template: [`frontend/.env.example`](frontend/.env.example)): `BACKEND_URL` (where `/api/*` is proxied) and `JWT_SECRET` (used by the route guard).
@@ -155,7 +154,7 @@ flowchart LR
   B -->|/api/* same origin| N
   N -->|rewrite proxy| E[Express API]
   E -->|authenticate → authorize → zod → service| S[(MongoDB<br/>replica set)]
-  E --> F[(Uploaded documents)]
+  E -->|GridFS| S
   J[Reminder job<br/>hourly] --> S
   SH[shared package<br/>BRE · loan math · zod schemas · types] -.used by.-> N
   SH -.used by.-> E
@@ -189,7 +188,7 @@ erDiagram
 |---|---|---|
 | `users` | name, email, passwordHash (`select:false`), role, isActive, passwordChangedAt | `{email}` unique · `{role, createdAt}` |
 | `borrowerprofiles` | user (1:1), fullName, pan, dob, monthlySalary, employmentMode, `bre {passed, failures, checkedAt}`, salarySlip, panCard | `{user}` unique · `{pan}` unique **partial** (`bre.passed: true`) |
-| `documents` | owner, kind (`SALARY_SLIP` / `PAN_CARD`), originalName, storedName (random UUID), mimeType, size | `{owner}` · `{storedName}` unique |
+| `documents` | owner, kind (`SALARY_SLIP` / `PAN_CARD`), originalName, fileId (the file itself lives in **GridFS**, bucket `uploads`), mimeType, size | `{owner}` · `{fileId}` unique |
 | `loans` | borrower, `applicant` snapshot, salarySlip, panCard, assignee, principal, interestRate, tenureDays, repaymentPlan, emiMonths, `instalments[]`, simpleInterest, totalRepayment, amountPaid, nextDueDate, nextDueAmount, status, isOpen, stage timestamps + actors, dueDate, consent, `statusHistory[]` | `{status, createdAt}` (every queue) · `{borrower, createdAt}` · `{borrower}` unique **partial** (`isOpen: true`) · `{assignee, status}` · `{status, nextDueDate}` (reminders, Overdue tab) |
 | `payments` | loan, utr, amount, paymentDate, recordedBy | `{utr}` unique · `{loan, paymentDate}` |
 | `auditlogs` | actor (null = system), actorRole, action, loan, subjectUser, details, ipAddress | `{actor, createdAt}` · `{subjectUser, createdAt}` · `{loan, createdAt}` |
@@ -356,7 +355,7 @@ npm test     # 16 shared unit tests + 37 backend integration tests
 
 - **Passwords:** bcrypt; login compares against a dummy hash for unknown emails (no user enumeration by timing).
 - **Session:** JWT in an **httpOnly, SameSite=Lax** cookie (not readable by scripts), 1-day expiry, re-checked against the DB on every request; a password change invalidates every other session.
-- **Uploads:** PDF/JPG/PNG only, ≤ 5 MB, verified by **file signature** (not just the extension), stored under random names, **never served publicly**; only the owner, Sanction and Admin can open them.
+- **Uploads:** PDF/JPG/PNG only, ≤ 5 MB, verified by **file signature** (not just the extension), stored in **MongoDB GridFS** (not on the server's disk, so they survive restarts and redeploys), **never served publicly**; only the owner, Sanction and Admin can open them.
 - helmet headers, rate-limited login/sign-up, 100 kb JSON limit, regex-escaped search, secrets and cookies redacted from logs, env validated at start-up.
 - **Compliance-minded features:**
   - Key Fact Statement before applying
@@ -396,7 +395,6 @@ npm test     # 16 shared unit tests + 37 backend integration tests
 
 ## 13. Limitations & future work
 
-- **File storage** is the local disk (`backend/uploads`). For a host with an ephemeral disk, move it to MongoDB GridFS or S3/Cloudinary with signed URLs.
 - **Notifications** are in-app only; email/SMS could be added on top of the same notification records.
 - **Late fees / penal interest** are intentionally not applied (they would change the specified loan maths); overdue loans are tracked and reminded instead.
 - Real KYC verification (PAN/Aadhaar APIs), credit bureau checks, refresh-token rotation and a Hindi/English language toggle are natural next steps.

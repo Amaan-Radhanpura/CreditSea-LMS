@@ -1,12 +1,9 @@
-import fs from 'fs';
-import path from 'path';
 import mongoose from 'mongoose';
 import { MongoMemoryReplSet } from 'mongodb-memory-server';
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { toBusinessDate, type Role } from '@lms/shared';
 import { createApp } from '../src/app';
-import { env } from '../src/config/env';
 import { AuditLog, BorrowerProfile, DocumentModel, Loan, Notification, Payment, User } from '../src/models';
 import { isOverdueReminderDay, runReminderJob } from '../src/modules/notifications/reminderJob';
 import { hashPassword } from '../src/modules/auth/auth.service';
@@ -57,7 +54,6 @@ beforeAll(async () => {
 afterAll(async () => {
   await mongoose.disconnect();
   await mongo?.stop();
-  fs.rmSync(env.uploadDir, { recursive: true, force: true });
 });
 
 describe('Auth', () => {
@@ -163,7 +159,6 @@ describe('Borrower journey + loan lifecycle', () => {
     expect(res.body.data.profile.salarySlip.originalName).toBe('new-slip.pdf');
     slipId = res.body.data.profile.salarySlip.id;
     await borrower.post('/api/borrower/documents/pan-card').attach('file', PDF, 'new-pan.pdf').expect(201);
-    expect(fs.existsSync(path.join(env.uploadDir))).toBe(true);
   });
 
   it('requires consent and valid ranges', async () => {

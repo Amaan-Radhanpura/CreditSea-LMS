@@ -11,9 +11,8 @@ next-env.d.ts
 .env.local
 .env.*.local
 
-# uploads (user files never committed)
-backend/uploads/*
-!backend/uploads/.gitkeep
+# legacy local uploads folder (documents now live in GridFS)
+backend/uploads/
 
 # misc
 .DS_Store

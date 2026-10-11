@@ -12,13 +12,16 @@ documentRouter.get(
   authenticate,
   validateObjectId('id'),
   asyncHandler(async (req, res) => {
-    const { doc, filePath } = await openDocument(req.params.id!, req.user!, req.ip);
+    const { doc, stream } = await openDocument(req.params.id!, req.user!, req.ip);
 
     res.setHeader('Content-Type', doc.mimeType);
     res.setHeader('Content-Disposition', `inline; filename*=UTF-8''${encodeURIComponent(doc.originalName)}`);
     res.setHeader('Cache-Control', 'private, no-store');
-    res.sendFile(filePath, (err) => {
-      if (err && !res.headersSent) res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'File not found' } });
-    });
+    stream
+      .on('error', () => {
+        if (!res.headersSent) res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'File not found' } });
+        else res.end();
+      })
+      .pipe(res);
   }),
 );
