@@ -1,5 +1,4 @@
 import { CheckCircle2 } from 'lucide-react';
-import { ThemeToggle } from '@/components/ThemeToggle';
 import { Logo } from '@/components/ui/Logo';
 
 const POINTS = ['Loans from ₹50,000 to ₹5,00,000', 'Simple 12% yearly interest', 'Know your total before you apply'];
@@ -26,9 +25,8 @@ export function AuthShell({ title, subtitle, children, wide }: { title: string; 
       </aside>
 
       <section className="flex flex-col px-5 py-6 sm:px-10">
-        <div className="flex items-center justify-between">
-          <Logo className="lg:invisible" />
-          <ThemeToggle />
+        <div className="lg:hidden">
+          <Logo />
         </div>
         <div className={`mx-auto flex w-full flex-1 flex-col justify-center py-10 animate-fade-in ${wide ? 'max-w-2xl' : 'max-w-md'}`}>
           <h1 className="text-3xl font-extrabold text-slate-900">{title}</h1>

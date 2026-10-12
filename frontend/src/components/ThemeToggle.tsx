@@ -35,8 +35,8 @@ function setTheme(theme: Theme) {
   }
 }
 
-/** Sun / moon button. `onDark` is for placing it on the brand-coloured panels. */
-export function ThemeToggle({ onDark, className }: { onDark?: boolean; className?: string }) {
+/** Sun / moon button, shown in the signed-in headers only. */
+export function ThemeToggle({ className }: { className?: string }) {
   const theme = useTheme();
   const next = theme === 'dark' ? 'light' : 'dark';
   return (
@@ -47,7 +47,7 @@ export function ThemeToggle({ onDark, className }: { onDark?: boolean; className
       title={`Switch to ${next} mode`}
       className={cn(
         'grid size-10 place-items-center rounded-xl transition',
-        onDark ? 'text-brand-100 hover:bg-white/10' : 'text-slate-600 hover:bg-slate-100 hover:text-brand-700',
+        'text-slate-600 hover:bg-slate-100 hover:text-brand-700',
         className,
       )}
     >

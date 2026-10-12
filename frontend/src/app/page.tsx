@@ -1,6 +1,5 @@
 import Link from 'next/link';
 import { ArrowRight, BadgePercent, Clock, FileUp, ShieldCheck, SlidersHorizontal, UserRound } from 'lucide-react';
-import { ThemeToggle } from '@/components/ThemeToggle';
 import { Logo } from '@/components/ui/Logo';
 
 const STEPS = [
@@ -18,12 +17,9 @@ export default function LandingPage() {
       <div className="relative mx-auto flex max-w-6xl flex-col px-5 py-6 sm:px-8">
         <header className="flex items-center justify-between">
           <Logo light />
-          <div className="flex items-center gap-1">
-            <ThemeToggle onDark />
-            <Link href="/login" className="rounded-xl px-4 py-2 font-semibold text-brand-100 hover:bg-white/10">
-              Log in
-            </Link>
-          </div>
+          <Link href="/login" className="rounded-xl px-4 py-2 font-semibold text-brand-100 hover:bg-white/10">
+            Log in
+          </Link>
         </header>
 
         <section className="grid items-center gap-12 py-14 lg:grid-cols-2 lg:py-24">
