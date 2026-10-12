@@ -8,6 +8,7 @@ import type { DashboardModule } from '@lms/shared';
 import { useAuth } from '@/components/AuthProvider';
 import { DeniedNotice } from '@/components/DeniedNotice';
 import { NotificationBell } from '@/components/NotificationBell';
+import { ThemeToggle } from '@/components/ThemeToggle';
 import { Logo } from '@/components/ui/Logo';
 import { ROLE_LABEL } from '@/lib/roles';
 import { allowedModules } from '@/lib/routes';
@@ -91,12 +92,14 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
           <Menu className="size-6" />
         </button>
         <Logo />
-        <div className="ml-auto">
+        <div className="ml-auto flex items-center gap-1">
+          <ThemeToggle />
           <NotificationBell />
         </div>
       </header>
       <div className="sticky top-0 z-30 hidden h-16 items-center justify-end gap-3 border-b border-slate-200/70 bg-white/80 px-10 backdrop-blur lg:flex">
         {user && <span className="text-sm text-slate-500">Signed in as <strong className="text-slate-700">{user.name}</strong></span>}
+        <ThemeToggle />
         <NotificationBell />
       </div>
       <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-10 lg:py-8">{children}</main>

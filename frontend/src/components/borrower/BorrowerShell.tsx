@@ -7,6 +7,7 @@ import { CircleUserRound, FilePlus2, House, LogOut, Wallet } from 'lucide-react'
 import { useAuth } from '@/components/AuthProvider';
 import { DeniedNotice } from '@/components/DeniedNotice';
 import { NotificationBell } from '@/components/NotificationBell';
+import { ThemeToggle } from '@/components/ThemeToggle';
 import { Logo } from '@/components/ui/Logo';
 import { cn } from '@/lib/utils';
 
@@ -51,6 +52,7 @@ export function BorrowerShell({ children }: { children: React.ReactNode }) {
             })}
           </nav>
           <div className="ml-auto flex items-center gap-1">
+            <ThemeToggle />
             <NotificationBell />
             {user && (
               <Link href="/profile" className="hidden items-center gap-2 rounded-xl px-2 py-1.5 hover:bg-slate-100 lg:flex">

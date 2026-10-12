@@ -156,6 +156,8 @@ Every staff member also has **My activity** and **My profile**. Each loan has an
 
 **UX for low-literacy users:** every label has an icon, big touch targets, plain-language errors ("You must be 23 to 50 years old"), status shown by colour + icon + word, Indian number formatting (₹1,05,917.81), and a mobile-first layout with a bottom tab bar.
 
+**Light and dark mode:** a sun / moon button in every header switches the theme. It follows the device setting until you choose, remembers your choice, and applies it before the page paints, so there's no flash of the wrong theme. Dark mode re-points Tailwind v4's colour variables in one place (`globals.css`), so no component has to repeat `dark:` classes.
+
 ---
 
 ## 4. Architecture

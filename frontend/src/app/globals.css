@@ -60,3 +60,171 @@ input[type="range"].slider::-moz-range-thumb {
 input[type="range"].slider:focus-visible::-webkit-slider-thumb {
   @apply ring-4 ring-brand-200;
 }
+
+/* ---------- Dark mode ----------
+ * Tailwind v4 builds every colour utility from a CSS variable, so dark mode re-points the palette here
+ * instead of adding dark: classes to every component: the slate scale flips (page dark, text light) and the
+ * light colour tints (50-200) become dark tints. The few classes used in both roles are fixed up below.
+ * Generated rules; the toggle sets class="dark" on <html>. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+.dark {
+  color-scheme: dark;
+  --surface: #131c2e;
+  --color-slate-50: #0b1120;
+  --color-slate-100: #1c2639;
+  --color-slate-200: #2a364c;
+  --color-slate-300: #3b4a63;
+  --color-slate-400: #64748b;
+  --color-slate-500: #94a3b8;
+  --color-slate-600: #b8c4d6;
+  --color-slate-700: #d5dde9;
+  --color-slate-800: #e6ebf3;
+  --color-slate-900: #f1f5f9;
+  --color-slate-950: #f8fafc;
+  --color-brand-50: color-mix(in srgb, #6366f1 14%, #131c2e);
+  --color-brand-100: color-mix(in srgb, #6366f1 22%, #131c2e);
+  --color-brand-200: color-mix(in srgb, #6366f1 34%, #131c2e);
+  --color-indigo-50: color-mix(in srgb, #6366f1 14%, #131c2e);
+  --color-indigo-100: color-mix(in srgb, #6366f1 22%, #131c2e);
+  --color-indigo-200: color-mix(in srgb, #6366f1 34%, #131c2e);
+  --color-emerald-50: color-mix(in srgb, #10b981 14%, #131c2e);
+  --color-emerald-100: color-mix(in srgb, #10b981 22%, #131c2e);
+  --color-emerald-200: color-mix(in srgb, #10b981 34%, #131c2e);
+  --color-rose-50: color-mix(in srgb, #f43f5e 14%, #131c2e);
+  --color-rose-100: color-mix(in srgb, #f43f5e 22%, #131c2e);
+  --color-rose-200: color-mix(in srgb, #f43f5e 34%, #131c2e);
+  --color-amber-50: color-mix(in srgb, #f59e0b 14%, #131c2e);
+  --color-amber-100: color-mix(in srgb, #f59e0b 22%, #131c2e);
+  --color-amber-200: color-mix(in srgb, #f59e0b 34%, #131c2e);
+  --color-sky-50: color-mix(in srgb, #0ea5e9 14%, #131c2e);
+  --color-sky-100: color-mix(in srgb, #0ea5e9 22%, #131c2e);
+  --color-sky-200: color-mix(in srgb, #0ea5e9 34%, #131c2e);
+  --color-violet-50: color-mix(in srgb, #8b5cf6 14%, #131c2e);
+  --color-violet-100: color-mix(in srgb, #8b5cf6 22%, #131c2e);
+  --color-violet-200: color-mix(in srgb, #8b5cf6 34%, #131c2e);
+}
+
+/* Cards and inputs: white becomes the dark surface (white text on buttons stays white). */
+.dark .bg-white, .dark .hover\:bg-white:hover { background-color: var(--surface); }
+.dark .bg-white\/80 { background-color: color-mix(in srgb, var(--surface) 80%, transparent); }
+.dark .bg-white\/90 { background-color: color-mix(in srgb, var(--surface) 90%, transparent); }
+.dark .ring-white { --tw-ring-color: var(--surface); }
+/* Dark fills that the flipped slate scale would turn light */
+.dark .bg-slate-900 { background-color: #3b4a63; }
+.dark .bg-slate-900\/40, .dark .bg-slate-900\/50 { background-color: rgb(0 0 0 / 0.6); }
+.dark input[type="range"].slider::-webkit-slider-thumb { border-color: var(--surface); }
+.dark input[type="range"].slider::-moz-range-thumb { border-color: var(--surface); }
+
+.dark .text-brand-50 { color: #eef2ff; }
+.dark .text-brand-50\/70 { color: color-mix(in srgb, #eef2ff 70%, transparent); }
+.dark .text-brand-50\/80 { color: color-mix(in srgb, #eef2ff 80%, transparent); }
+.dark .text-brand-50\/90 { color: color-mix(in srgb, #eef2ff 90%, transparent); }
+.dark .text-brand-100 { color: #e0e7ff; }
+.dark .text-brand-100\/70 { color: color-mix(in srgb, #e0e7ff 70%, transparent); }
+.dark .text-brand-100\/80 { color: color-mix(in srgb, #e0e7ff 80%, transparent); }
+.dark .text-brand-100\/90 { color: color-mix(in srgb, #e0e7ff 90%, transparent); }
+.dark .text-brand-200 { color: #c7d2fe; }
+.dark .text-brand-200\/70 { color: color-mix(in srgb, #c7d2fe 70%, transparent); }
+.dark .text-brand-200\/80 { color: color-mix(in srgb, #c7d2fe 80%, transparent); }
+.dark .text-brand-200\/90 { color: color-mix(in srgb, #c7d2fe 90%, transparent); }
+.dark .text-indigo-50 { color: #eef2ff; }
+.dark .text-indigo-50\/70 { color: color-mix(in srgb, #eef2ff 70%, transparent); }
+.dark .text-indigo-50\/80 { color: color-mix(in srgb, #eef2ff 80%, transparent); }
+.dark .text-indigo-50\/90 { color: color-mix(in srgb, #eef2ff 90%, transparent); }
+.dark .text-indigo-100 { color: #e0e7ff; }
+.dark .text-indigo-100\/70 { color: color-mix(in srgb, #e0e7ff 70%, transparent); }
+.dark .text-indigo-100\/80 { color: color-mix(in srgb, #e0e7ff 80%, transparent); }
+.dark .text-indigo-100\/90 { color: color-mix(in srgb, #e0e7ff 90%, transparent); }
+.dark .text-indigo-200 { color: #c7d2fe; }
+.dark .text-indigo-200\/70 { color: color-mix(in srgb, #c7d2fe 70%, transparent); }
+.dark .text-indigo-200\/80 { color: color-mix(in srgb, #c7d2fe 80%, transparent); }
+.dark .text-indigo-200\/90 { color: color-mix(in srgb, #c7d2fe 90%, transparent); }
+.dark .text-emerald-50 { color: #ecfdf5; }
+.dark .text-emerald-50\/70 { color: color-mix(in srgb, #ecfdf5 70%, transparent); }
+.dark .text-emerald-50\/80 { color: color-mix(in srgb, #ecfdf5 80%, transparent); }
+.dark .text-emerald-50\/90 { color: color-mix(in srgb, #ecfdf5 90%, transparent); }
+.dark .text-emerald-100 { color: #d1fae5; }
+.dark .text-emerald-100\/70 { color: color-mix(in srgb, #d1fae5 70%, transparent); }
+.dark .text-emerald-100\/80 { color: color-mix(in srgb, #d1fae5 80%, transparent); }
+.dark .text-emerald-100\/90 { color: color-mix(in srgb, #d1fae5 90%, transparent); }
+.dark .text-emerald-200 { color: #a7f3d0; }
+.dark .text-emerald-200\/70 { color: color-mix(in srgb, #a7f3d0 70%, transparent); }
+.dark .text-emerald-200\/80 { color: color-mix(in srgb, #a7f3d0 80%, transparent); }
+.dark .text-emerald-200\/90 { color: color-mix(in srgb, #a7f3d0 90%, transparent); }
+.dark .text-rose-50 { color: #fff1f2; }
+.dark .text-rose-50\/70 { color: color-mix(in srgb, #fff1f2 70%, transparent); }
+.dark .text-rose-50\/80 { color: color-mix(in srgb, #fff1f2 80%, transparent); }
+.dark .text-rose-50\/90 { color: color-mix(in srgb, #fff1f2 90%, transparent); }
+.dark .text-rose-100 { color: #ffe4e6; }
+.dark .text-rose-100\/70 { color: color-mix(in srgb, #ffe4e6 70%, transparent); }
+.dark .text-rose-100\/80 { color: color-mix(in srgb, #ffe4e6 80%, transparent); }
+.dark .text-rose-100\/90 { color: color-mix(in srgb, #ffe4e6 90%, transparent); }
+.dark .text-rose-200 { color: #fecdd3; }
+.dark .text-rose-200\/70 { color: color-mix(in srgb, #fecdd3 70%, transparent); }
+.dark .text-rose-200\/80 { color: color-mix(in srgb, #fecdd3 80%, transparent); }
+.dark .text-rose-200\/90 { color: color-mix(in srgb, #fecdd3 90%, transparent); }
+.dark .text-amber-50 { color: #fffbeb; }
+.dark .text-amber-50\/70 { color: color-mix(in srgb, #fffbeb 70%, transparent); }
+.dark .text-amber-50\/80 { color: color-mix(in srgb, #fffbeb 80%, transparent); }
+.dark .text-amber-50\/90 { color: color-mix(in srgb, #fffbeb 90%, transparent); }
+.dark .text-amber-100 { color: #fef3c7; }
+.dark .text-amber-100\/70 { color: color-mix(in srgb, #fef3c7 70%, transparent); }
+.dark .text-amber-100\/80 { color: color-mix(in srgb, #fef3c7 80%, transparent); }
+.dark .text-amber-100\/90 { color: color-mix(in srgb, #fef3c7 90%, transparent); }
+.dark .text-amber-200 { color: #fde68a; }
+.dark .text-amber-200\/70 { color: color-mix(in srgb, #fde68a 70%, transparent); }
+.dark .text-amber-200\/80 { color: color-mix(in srgb, #fde68a 80%, transparent); }
+.dark .text-amber-200\/90 { color: color-mix(in srgb, #fde68a 90%, transparent); }
+.dark .text-sky-50 { color: #f0f9ff; }
+.dark .text-sky-50\/70 { color: color-mix(in srgb, #f0f9ff 70%, transparent); }
+.dark .text-sky-50\/80 { color: color-mix(in srgb, #f0f9ff 80%, transparent); }
+.dark .text-sky-50\/90 { color: color-mix(in srgb, #f0f9ff 90%, transparent); }
+.dark .text-sky-100 { color: #e0f2fe; }
+.dark .text-sky-100\/70 { color: color-mix(in srgb, #e0f2fe 70%, transparent); }
+.dark .text-sky-100\/80 { color: color-mix(in srgb, #e0f2fe 80%, transparent); }
+.dark .text-sky-100\/90 { color: color-mix(in srgb, #e0f2fe 90%, transparent); }
+.dark .text-sky-200 { color: #bae6fd; }
+.dark .text-sky-200\/70 { color: color-mix(in srgb, #bae6fd 70%, transparent); }
+.dark .text-sky-200\/80 { color: color-mix(in srgb, #bae6fd 80%, transparent); }
+.dark .text-sky-200\/90 { color: color-mix(in srgb, #bae6fd 90%, transparent); }
+.dark .text-violet-50 { color: #f5f3ff; }
+.dark .text-violet-50\/70 { color: color-mix(in srgb, #f5f3ff 70%, transparent); }
+.dark .text-violet-50\/80 { color: color-mix(in srgb, #f5f3ff 80%, transparent); }
+.dark .text-violet-50\/90 { color: color-mix(in srgb, #f5f3ff 90%, transparent); }
+.dark .text-violet-100 { color: #ede9fe; }
+.dark .text-violet-100\/70 { color: color-mix(in srgb, #ede9fe 70%, transparent); }
+.dark .text-violet-100\/80 { color: color-mix(in srgb, #ede9fe 80%, transparent); }
+.dark .text-violet-100\/90 { color: color-mix(in srgb, #ede9fe 90%, transparent); }
+.dark .text-violet-200 { color: #ddd6fe; }
+.dark .text-violet-200\/70 { color: color-mix(in srgb, #ddd6fe 70%, transparent); }
+.dark .text-violet-200\/80 { color: color-mix(in srgb, #ddd6fe 80%, transparent); }
+.dark .text-violet-200\/90 { color: color-mix(in srgb, #ddd6fe 90%, transparent); }
+.dark .text-brand-600, .dark .hover\:text-brand-600:hover, .dark .group:hover .group-hover\:text-brand-600 { color: #818cf8; }
+.dark .text-brand-700, .dark .hover\:text-brand-700:hover, .dark .group:hover .group-hover\:text-brand-700 { color: #a5b4fc; }
+.dark .text-brand-800, .dark .hover\:text-brand-800:hover, .dark .group:hover .group-hover\:text-brand-800 { color: #a5b4fc; }
+.dark .text-brand-900, .dark .hover\:text-brand-900:hover, .dark .group:hover .group-hover\:text-brand-900 { color: #a5b4fc; }
+.dark .text-indigo-600, .dark .hover\:text-indigo-600:hover, .dark .group:hover .group-hover\:text-indigo-600 { color: #818cf8; }
+.dark .text-indigo-700, .dark .hover\:text-indigo-700:hover, .dark .group:hover .group-hover\:text-indigo-700 { color: #a5b4fc; }
+.dark .text-indigo-800, .dark .hover\:text-indigo-800:hover, .dark .group:hover .group-hover\:text-indigo-800 { color: #a5b4fc; }
+.dark .text-indigo-900, .dark .hover\:text-indigo-900:hover, .dark .group:hover .group-hover\:text-indigo-900 { color: #a5b4fc; }
+.dark .text-emerald-600, .dark .hover\:text-emerald-600:hover, .dark .group:hover .group-hover\:text-emerald-600 { color: #34d399; }
+.dark .text-emerald-700, .dark .hover\:text-emerald-700:hover, .dark .group:hover .group-hover\:text-emerald-700 { color: #6ee7b7; }
+.dark .text-emerald-800, .dark .hover\:text-emerald-800:hover, .dark .group:hover .group-hover\:text-emerald-800 { color: #6ee7b7; }
+.dark .text-emerald-900, .dark .hover\:text-emerald-900:hover, .dark .group:hover .group-hover\:text-emerald-900 { color: #6ee7b7; }
+.dark .text-rose-600, .dark .hover\:text-rose-600:hover, .dark .group:hover .group-hover\:text-rose-600 { color: #fb7185; }
+.dark .text-rose-700, .dark .hover\:text-rose-700:hover, .dark .group:hover .group-hover\:text-rose-700 { color: #fda4af; }
+.dark .text-rose-800, .dark .hover\:text-rose-800:hover, .dark .group:hover .group-hover\:text-rose-800 { color: #fda4af; }
+.dark .text-rose-900, .dark .hover\:text-rose-900:hover, .dark .group:hover .group-hover\:text-rose-900 { color: #fda4af; }
+.dark .text-amber-600, .dark .hover\:text-amber-600:hover, .dark .group:hover .group-hover\:text-amber-600 { color: #fbbf24; }
+.dark .text-amber-700, .dark .hover\:text-amber-700:hover, .dark .group:hover .group-hover\:text-amber-700 { color: #fcd34d; }
+.dark .text-amber-800, .dark .hover\:text-amber-800:hover, .dark .group:hover .group-hover\:text-amber-800 { color: #fcd34d; }
+.dark .text-amber-900, .dark .hover\:text-amber-900:hover, .dark .group:hover .group-hover\:text-amber-900 { color: #fcd34d; }
+.dark .text-sky-600, .dark .hover\:text-sky-600:hover, .dark .group:hover .group-hover\:text-sky-600 { color: #38bdf8; }
+.dark .text-sky-700, .dark .hover\:text-sky-700:hover, .dark .group:hover .group-hover\:text-sky-700 { color: #7dd3fc; }
+.dark .text-sky-800, .dark .hover\:text-sky-800:hover, .dark .group:hover .group-hover\:text-sky-800 { color: #7dd3fc; }
+.dark .text-sky-900, .dark .hover\:text-sky-900:hover, .dark .group:hover .group-hover\:text-sky-900 { color: #7dd3fc; }
+.dark .text-violet-600, .dark .hover\:text-violet-600:hover, .dark .group:hover .group-hover\:text-violet-600 { color: #a78bfa; }
+.dark .text-violet-700, .dark .hover\:text-violet-700:hover, .dark .group:hover .group-hover\:text-violet-700 { color: #c4b5fd; }
+.dark .text-violet-800, .dark .hover\:text-violet-800:hover, .dark .group:hover .group-hover\:text-violet-800 { color: #c4b5fd; }
+.dark .text-violet-900, .dark .hover\:text-violet-900:hover, .dark .group:hover .group-hover\:text-violet-900 { color: #c4b5fd; }
